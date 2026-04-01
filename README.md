@@ -19,7 +19,7 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 - **Sign-in:** Google (popup) or **email/password** with **Sign in** / **Sign up** on the same screen; clips and files scoped to `request.auth.uid`
 - **Branding:** NBBL mark from `public/logo.png` on the sign-in screen, hub header, and video player details (replace the file to update artwork everywhere it is referenced)
-- `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close
+- `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close; on phones, **switch front/rear camera** before recording (swap control on the live preview in `Recorder.tsx`)
 - Client-generated **JPEG thumbnails** uploaded with each video
 - Hub: category filters, search (title + tags), loading and error states
 - **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site hero (companion `nbbl` project `index.html`; `.hero-gradient-nbbl` in `src/index.css`)
@@ -31,7 +31,7 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 | ---- | ------- |
 | `src/App.tsx` | Auth gate, Firestore clip subscription, recorder/player modals |
 | `src/components/ContentHub.tsx` | Library grid, filters, header, bottom nav |
-| `src/components/Recorder.tsx` | Camera, record/stop, save → upload |
+| `src/components/Recorder.tsx` | Camera (`getUserMedia` with `facingMode`), front/rear toggle, record/stop, save → upload |
 | `src/components/SignInScreen.tsx` | Email/password (sign in & sign up), Google sign-in, or “configure Firebase” message |
 | `src/components/VideoPlayer.tsx` | Full-screen clip playback |
 | `src/lib/firebase.ts` | App init from `VITE_FIREBASE_*` |

@@ -1,5 +1,5 @@
 import React, {useState, useRef, useEffect, useCallback} from 'react';
-import {Camera, StopCircle, Save, X, Trash2} from 'lucide-react';
+import {Camera, StopCircle, Save, X, Trash2, SwitchCamera} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle, CardDescription} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
@@ -37,6 +37,8 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  /** Rear camera on phones (`environment`); `user` is selfie / front. */
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
@@ -70,7 +72,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     async function setupCamera() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {facingMode: 'environment'},
+          video: {facingMode},
           audio: true,
         });
         if (cancelled) {
@@ -99,7 +101,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
       }
       revokePreview();
     };
-  }, [revokePreview]);
+  }, [facingMode, revokePreview]);
 
   useEffect(() => {
     if (recordedBlob) {
@@ -256,6 +258,26 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                 playsInline
                 className="h-full w-full object-cover"
               />
+            )}
+
+            {!recordedBlob && !isRecording && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="absolute top-3 right-3 min-h-11 min-w-11 bg-black/70 border border-zinc-600 text-white hover:bg-black/90"
+                onClick={() =>
+                  setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'))
+                }
+                disabled={!cameraReady}
+                aria-label={
+                  facingMode === 'environment'
+                    ? 'Switch to front-facing camera'
+                    : 'Switch to rear-facing camera'
+                }
+              >
+                <SwitchCamera className="h-5 w-5" />
+              </Button>
             )}
 
             {isRecording && (

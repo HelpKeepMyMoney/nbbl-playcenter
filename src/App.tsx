@@ -94,7 +94,13 @@ export default function App() {
 
       <AnimatePresence>
         {selectedVideo && (
-          <VideoPlayer video={selectedVideo} onClose={() => setSelectedVideo(null)} />
+          <VideoPlayer
+            video={selectedVideo}
+            videos={videos}
+            onSelectVideo={setSelectedVideo}
+            onClose={() => setSelectedVideo(null)}
+            userLabel={user.displayName || user.email || 'You'}
+          />
         )}
       </AnimatePresence>
     </div>

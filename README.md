@@ -22,6 +22,7 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 - `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close; on phones, **switch front/rear camera** before recording (swap control on the live preview in `Recorder.tsx`)
 - Client-generated **JPEG thumbnails** uploaded with each video
 - Hub: category filters, search (title + tags), loading and error states
+- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation through your library (same order as the hub), **stats** from real metadata (duration, category, tag count, position in library), **Like** (stored per device in `localStorage` via `clipLikes.ts`), **Share** (Web Share API when available, otherwise copy video URL to clipboard), **Download** (blob save as `.webm`, with open-in-new-tab fallback)
 - **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site hero (companion `nbbl` project `index.html`; `.hero-gradient-nbbl` in `src/index.css`)
 - **Mobile-first:** compact hero, fixed bottom **Hub | Record** bar, safe-area padding, large touch targets
 
@@ -29,14 +30,15 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 | Path | Purpose |
 | ---- | ------- |
-| `src/App.tsx` | Auth gate, Firestore clip subscription, recorder/player modals |
+| `src/App.tsx` | Auth gate, Firestore clip subscription; recorder + player modals (player gets full clip list + user label) |
 | `src/components/ContentHub.tsx` | Library grid, filters, header, bottom nav |
 | `src/components/Recorder.tsx` | Camera (`getUserMedia` with `facingMode`), front/rear toggle, record/stop, save → upload |
 | `src/components/SignInScreen.tsx` | Email/password (sign in & sign up), Google sign-in, or “configure Firebase” message |
-| `src/components/VideoPlayer.tsx` | Full-screen clip playback |
+| `src/components/VideoPlayer.tsx` | Clip modal: playback, library nav, stats, like / share / download |
 | `src/lib/firebase.ts` | App init from `VITE_FIREBASE_*` |
 | `src/lib/auth.ts` | Google + email/password auth, `signOut`, `onAuthStateChanged`, `formatAuthError` |
-| `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip` |
+| `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip`; maps Firestore → `VideoMetadata` (incl. `durationSec`) |
+| `src/lib/clipLikes.ts` | Per-clip like toggles persisted in `localStorage` |
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `firestore.rules` / `storage.rules` | Owner-only security rules |
 | `firestore.indexes.json` | Composite index: `userId` + `createdAt` desc |

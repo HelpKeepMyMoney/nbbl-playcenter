@@ -5,7 +5,10 @@ export interface VideoMetadata {
   title: string;
   thumbnailUrl: string;
   videoUrl: string;
+  /** Formatted m:ss */
   duration: string;
+  /** Raw seconds from storage (stats, downloads) */
+  durationSec: number;
   createdAt: Date;
   category: VideoCategory;
   tags: string[];

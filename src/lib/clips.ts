@@ -40,12 +40,17 @@ async function docToVideoMetadata(id: string, data: ClipDoc): Promise<VideoMetad
     getDownloadURL(ref(storage, data.videoStoragePath)),
     getDownloadURL(ref(storage, data.thumbnailStoragePath)),
   ]);
+  const durationSec =
+    typeof data.durationSec === 'number' && Number.isFinite(data.durationSec)
+      ? data.durationSec
+      : 0;
   return {
     id,
     title: data.title,
     thumbnailUrl,
     videoUrl,
-    duration: formatDurationSec(data.durationSec),
+    duration: formatDurationSec(durationSec),
+    durationSec,
     createdAt: data.createdAt.toDate(),
     category: data.category,
     tags: data.tags ?? [],

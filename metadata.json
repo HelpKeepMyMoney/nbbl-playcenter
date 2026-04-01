@@ -1,0 +1,5 @@
+{
+  "name": "NBBL PlayCenter",
+  "description": "The official MVP for the No Backboard Basketball League (NBBL) PlayCenter. Record games, organize highlights, and browse training sessions.",
+  "requestFramePermissions": ["camera", "microphone"]
+}

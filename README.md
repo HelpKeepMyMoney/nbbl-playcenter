@@ -22,7 +22,7 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 - `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close; on phones, **switch front/rear camera** before recording (swap control on the live preview in `Recorder.tsx`)
 - Client-generated **JPEG thumbnails** uploaded with each video
 - Hub: category filters, search (title + tags), loading and error states
-- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation through your library (same order as the hub), **stats** from real metadata (duration, category, tag count, position in library), **Like** (stored per device in `localStorage` via `clipLikes.ts`), **Share** (Web Share API when available, otherwise copy video URL to clipboard), **Download** (blob save as `.webm`, with open-in-new-tab fallback)
+- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation through your library (same order as the hub), **stats** from real metadata (duration, category, tag count, position in library), **Like** (stored per device in `localStorage` via `clipLikes.ts`), **Share** (Web Share API when available, otherwise copy video URL to clipboard), **Download** (`getBlob` + object URL as `.webm`; requires **Storage bucket CORS** — see below — otherwise falls back to opening the video URL in a new tab)
 - **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site hero (companion `nbbl` project `index.html`; `.hero-gradient-nbbl` in `src/index.css`)
 - **Mobile-first:** compact hero, fixed bottom **Hub | Record** bar, safe-area padding, large touch targets
 
@@ -34,15 +34,16 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 | `src/components/ContentHub.tsx` | Library grid, filters, header, bottom nav |
 | `src/components/Recorder.tsx` | Camera (`getUserMedia` with `facingMode`), front/rear toggle, record/stop, save → upload |
 | `src/components/SignInScreen.tsx` | Email/password (sign in & sign up), Google sign-in, or “configure Firebase” message |
-| `src/components/VideoPlayer.tsx` | Clip modal: playback, library nav, stats, like / share / download |
+| `src/components/VideoPlayer.tsx` | Clip modal: playback, library nav, stats, like / share / download (`getBlob` + `videoStoragePath`; needs bucket CORS) |
 | `src/lib/firebase.ts` | App init from `VITE_FIREBASE_*` |
 | `src/lib/auth.ts` | Google + email/password auth, `signOut`, `onAuthStateChanged`, `formatAuthError` |
-| `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip`; maps Firestore → `VideoMetadata` (incl. `durationSec`) |
+| `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip`; maps Firestore → `VideoMetadata` (incl. `durationSec`, `videoStoragePath`) |
 | `src/lib/clipLikes.ts` | Per-clip like toggles persisted in `localStorage` |
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `firestore.rules` / `storage.rules` | Owner-only security rules |
 | `firestore.indexes.json` | Composite index: `userId` + `createdAt` desc |
 | `firebase.json` | CLI targets for Firestore + Storage |
+| `storage-cors.json` | GCS CORS rules — apply to your default bucket so **Download** works from the browser (localhost + production) |
 | `.firebaserc` | Default Firebase **project ID** for CLI deploys |
 | `public/logo.png` | League mark served at `/logo.png` for sign-in, hub, and player UI |
 | `src/index.css` | Global styles; `.hero-gradient-nbbl` matches main NBBL site hero overlay |
@@ -63,7 +64,15 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
    - `VITE_FIREBASE_APP_ID`
 
 5. Deploy **Firestore rules + indexes** and **Storage rules** (see [Firebase deploy](#firebase-deploy)). You can paste rules in the Console instead, but the CLI keeps the repo as the source of truth.
-6. `npm run dev` — app defaults to **http://localhost:3000** (see `package.json`).
+6. **Storage CORS (needed for Download):** Without CORS on your **default Storage bucket**, the browser blocks reading clip bytes from `localhost` or your deployed domain (`Access-Control-Allow-Origin`). Install [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (for `gsutil`), then apply the repo file (use the bucket name from `VITE_FIREBASE_STORAGE_BUCKET`, e.g. `your-project.appspot.com`):
+
+   ```bash
+   gsutil cors set storage-cors.json gs://YOUR_STORAGE_BUCKET
+   ```
+
+   The committed `storage-cors.json` allows **GET** from any origin (`*`) for simplicity; you can replace `*` with explicit origins (e.g. `http://localhost:3000`, `https://your-app.vercel.app`) for stricter control.
+
+7. `npm run dev` — app defaults to **http://localhost:3000** (see `package.json`).
 
 Never commit `.env.local` or `.env`; they are listed in `.gitignore`.
 
@@ -90,11 +99,14 @@ firebase use your-project-id
 
 After changing rules or indexes, redeploy so production matches the repo.
 
+**Storage CORS** (in-app **Download**) is applied with **`gsutil`**, not `firebase deploy` — see [Run locally](#run-locally) step 6.
+
 ## Deploy to Vercel
 
 1. Push this repo to GitHub and import it in [Vercel](https://vercel.com/) (framework: **Vite**, build `npm run build`, output `dist`).
 2. Add the same **`VITE_FIREBASE_*`** environment variables for **Production** (and **Preview** if you use preview deployments).
 3. In Firebase **Authentication → Settings → Authorized domains**, add your Vercel domain (e.g. `your-app.vercel.app`).
+4. Ensure **Storage CORS** is applied on your default bucket (`gsutil cors set storage-cors.json gs://…` — [Run locally](#run-locally) step 6) so **Download** works in production as well as on `localhost`.
 
 ## npm scripts
 

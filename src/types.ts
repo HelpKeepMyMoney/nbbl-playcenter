@@ -5,6 +5,8 @@ export interface VideoMetadata {
   title: string;
   thumbnailUrl: string;
   videoUrl: string;
+  /** Storage path for SDK download (`getBlob`) — avoids CORS on raw URL only after bucket CORS is set */
+  videoStoragePath: string;
   /** Formatted m:ss */
   duration: string;
   /** Raw seconds from storage (stats, downloads) */

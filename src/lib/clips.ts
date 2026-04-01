@@ -49,6 +49,7 @@ async function docToVideoMetadata(id: string, data: ClipDoc): Promise<VideoMetad
     title: data.title,
     thumbnailUrl,
     videoUrl,
+    videoStoragePath: data.videoStoragePath ?? '',
     duration: formatDurationSec(durationSec),
     durationSec,
     createdAt: data.createdAt.toDate(),

@@ -15,6 +15,8 @@ import {motion} from 'motion/react';
 import {VideoMetadata} from '@/src/types';
 import {format} from 'date-fns';
 import {isClipLiked, toggleClipLike} from '@/src/lib/clipLikes';
+import {getBlob, ref} from 'firebase/storage';
+import {getFirebaseStorage} from '@/src/lib/firebase';
 
 interface VideoPlayerProps {
   video: VideoMetadata;
@@ -96,9 +98,11 @@ export function VideoPlayer({
     setDownloading(true);
     const name = `${safeDownloadBasename(video.title)}.webm`;
     try {
-      const res = await fetch(video.videoUrl);
-      if (!res.ok) throw new Error('fetch failed');
-      const blob = await res.blob();
+      if (!video.videoStoragePath) {
+        throw new Error('missing path');
+      }
+      // Uses Storage SDK XHR — still requires bucket CORS (see storage-cors.json + README).
+      const blob = await getBlob(ref(getFirebaseStorage(), video.videoStoragePath));
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -110,10 +114,11 @@ export function VideoPlayer({
       URL.revokeObjectURL(url);
     } catch {
       window.open(video.videoUrl, '_blank', 'noopener,noreferrer');
+      setShareHint('Opened in a new tab — use your browser’s menu to save the file, or set Storage CORS (see README).');
     } finally {
       setDownloading(false);
     }
-  }, [video.title, video.videoUrl]);
+  }, [video.title, video.videoStoragePath, video.videoUrl]);
 
   const positionLabel =
     currentIndex >= 0 && videos.length > 0

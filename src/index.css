@@ -101,5 +101,14 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+  /* Matches nbbl marketing site hero overlay (index.html .hero-gradient) */
+  .hero-gradient-nbbl {
+    background: linear-gradient(
+      0deg,
+      rgba(5, 5, 5, 1) 0%,
+      rgba(5, 5, 5, 0.4) 50%,
+      rgba(5, 5, 5, 0.8) 100%
+    );
+  }
 }
 

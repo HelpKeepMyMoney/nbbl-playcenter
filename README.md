@@ -11,16 +11,18 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 | ----- | ---------- |
 | App | [Vite](https://vitejs.dev/) 6, [React](https://react.dev/) 19, TypeScript |
 | UI | [Tailwind CSS](https://tailwindcss.com/) 4, [Motion](https://motion.dev/), shadcn-style components in `components/ui/` |
-| Auth & data | [Firebase](https://firebase.google.com/) Auth (Google), [Cloud Firestore](https://firebase.google.com/docs/firestore), [Cloud Storage](https://firebase.google.com/docs/storage) |
+| Auth & data | [Firebase](https://firebase.google.com/) Auth (**Google** + **email/password**), [Cloud Firestore](https://firebase.google.com/docs/firestore), [Cloud Storage](https://firebase.google.com/docs/storage) |
 | Hosting | [Vercel](https://vercel.com/) (`vercel.json` SPA rewrite) |
 | Deploy tooling | [Firebase CLI](https://firebase.google.com/docs/cli) via `firebase-tools` (dev dependency) |
 
 ## Features
 
-- Google sign-in; clips and files scoped to `request.auth.uid`
+- **Sign-in:** Google (popup) or **email/password** with **Sign in** / **Sign up** on the same screen; clips and files scoped to `request.auth.uid`
+- **Branding:** NBBL mark from `public/logo.png` on the sign-in screen, hub header, and video player details (replace the file to update artwork everywhere it is referenced)
 - `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close
 - Client-generated **JPEG thumbnails** uploaded with each video
 - Hub: category filters, search (title + tags), loading and error states
+- **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site hero (companion `nbbl` project `index.html`; `.hero-gradient-nbbl` in `src/index.css`)
 - **Mobile-first:** compact hero, fixed bottom **Hub | Record** bar, safe-area padding, large touch targets
 
 ## Repository layout
@@ -30,22 +32,25 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 | `src/App.tsx` | Auth gate, Firestore clip subscription, recorder/player modals |
 | `src/components/ContentHub.tsx` | Library grid, filters, header, bottom nav |
 | `src/components/Recorder.tsx` | Camera, record/stop, save → upload |
-| `src/components/SignInScreen.tsx` | Google sign-in or “configure Firebase” message |
+| `src/components/SignInScreen.tsx` | Email/password (sign in & sign up), Google sign-in, or “configure Firebase” message |
 | `src/components/VideoPlayer.tsx` | Full-screen clip playback |
 | `src/lib/firebase.ts` | App init from `VITE_FIREBASE_*` |
-| `src/lib/auth.ts` | `signInWithPopup`, `signOut`, `onAuthStateChanged` |
+| `src/lib/auth.ts` | Google + email/password auth, `signOut`, `onAuthStateChanged`, `formatAuthError` |
 | `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip` |
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `firestore.rules` / `storage.rules` | Owner-only security rules |
 | `firestore.indexes.json` | Composite index: `userId` + `createdAt` desc |
 | `firebase.json` | CLI targets for Firestore + Storage |
 | `.firebaserc` | Default Firebase **project ID** for CLI deploys |
+| `public/logo.png` | League mark served at `/logo.png` for sign-in, hub, and player UI |
+| `src/index.css` | Global styles; `.hero-gradient-nbbl` matches main NBBL site hero overlay |
 
 ## Run locally
 
 1. Install **Node.js** 20+.
 2. `npm install`
-3. In [Firebase Console](https://console.firebase.google.com/), create a project (or use an existing one). Add a **Web** app and enable **Authentication → Google**, **Firestore**, and **Storage**.
+3. In [Firebase Console](https://console.firebase.google.com/), create a project (or use an existing one). Add a **Web** app and enable **Authentication →** **Google** and **Email/Password** (both under Sign-in method), plus **Firestore** and **Storage**.  
+   - If you see `auth/operation-not-allowed`, the provider you tried is not enabled for this project—turn on the matching method and save.
 4. Copy `.env.example` to **`.env.local`** and set all variables (from Project settings → Your apps → SDK config):
 
    - `VITE_FIREBASE_API_KEY`

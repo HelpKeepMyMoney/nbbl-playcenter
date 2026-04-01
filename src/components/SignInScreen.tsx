@@ -1,24 +1,87 @@
 import React, {useState} from 'react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {signInWithGoogle} from '@/src/lib/auth';
+import {
+  formatAuthError,
+  signInWithEmail,
+  signInWithGoogle,
+  signUpWithEmail,
+} from '@/src/lib/auth';
 import {isFirebaseConfigured} from '@/src/lib/firebase';
 
+type AuthMode = 'signin' | 'signup';
+
+const inputClass =
+  'mt-1 w-full min-h-11 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-orange-600/40';
+
+type Loading = 'idle' | 'google' | 'email';
+
 export function SignInScreen() {
-  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState<Loading>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const configured = isFirebaseConfigured();
 
+  const resetFormFields = () => {
+    setPassword('');
+    setConfirmPassword('');
+  };
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next);
+    setError(null);
+    resetFormFields();
+  };
+
+  const busy = loading !== 'idle';
+
   const onGoogle = async () => {
     setError(null);
-    setBusy(true);
+    setLoading('google');
     try {
       await signInWithGoogle();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      setError(formatAuthError(e));
     } finally {
-      setBusy(false);
+      setLoading('idle');
+    }
+  };
+
+  const onEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError('Enter your email address.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (mode === 'signup') {
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.');
+        return;
+      }
+    }
+
+    setLoading('email');
+    try {
+      if (mode === 'signup') {
+        await signUpWithEmail(trimmed, password);
+      } else {
+        await signInWithEmail(trimmed, password);
+      }
+    } catch (err) {
+      setError(formatAuthError(err));
+    } finally {
+      setLoading('idle');
     }
   };
 
@@ -43,9 +106,7 @@ export function SignInScreen() {
     <div className="min-h-dvh flex flex-col items-center justify-center gap-8 p-6 bg-black text-white safe-pad-bottom">
       <div className="text-center space-y-3 max-w-md">
         <div className="flex justify-center">
-          <div className="h-14 w-14 rounded-full bg-orange-600 flex items-center justify-center">
-            <span className="text-lg font-black">NB</span>
-          </div>
+          <img src="/logo.png" alt="NBBL" className="h-14 w-14 object-contain" />
         </div>
         <h1 className="font-display text-3xl sm:text-4xl font-black uppercase tracking-tight italic">
           PlayCenter
@@ -57,14 +118,109 @@ export function SignInScreen() {
       </div>
 
       <Card className="w-full max-w-sm bg-zinc-900 border-zinc-800">
-        <CardContent className="pt-6 space-y-4">
+        <CardContent className="pt-6 space-y-5">
+          <div className="flex rounded-lg border border-zinc-800 p-0.5 bg-zinc-950/80">
+            <button
+              type="button"
+              onClick={() => switchMode('signin')}
+              className={`flex-1 rounded-md py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+                mode === 'signin' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('signup')}
+              className={`flex-1 rounded-md py-2 text-xs font-bold uppercase tracking-widest transition-colors ${
+                mode === 'signup' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Sign up
+            </button>
+          </div>
+
           {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+
+          <form onSubmit={e => void onEmailSubmit(e)} className="space-y-3">
+            <div>
+              <label htmlFor="auth-email" className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Email
+              </label>
+              <input
+                id="auth-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className={inputClass}
+                placeholder="you@example.com"
+                disabled={busy}
+              />
+            </div>
+            <div>
+              <label htmlFor="auth-password" className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+                Password
+              </label>
+              <input
+                id="auth-password"
+                type="password"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className={inputClass}
+                placeholder="••••••••"
+                disabled={busy}
+              />
+            </div>
+            {mode === 'signup' && (
+              <div>
+                <label
+                  htmlFor="auth-confirm"
+                  className="text-xs font-medium uppercase tracking-wider text-zinc-500"
+                >
+                  Confirm password
+                </label>
+                <input
+                  id="auth-confirm"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className={inputClass}
+                  placeholder="••••••••"
+                  disabled={busy}
+                />
+              </div>
+            )}
+            <Button
+              type="submit"
+              className="w-full min-h-12 bg-orange-600 text-white hover:bg-orange-700 font-bold uppercase tracking-widest text-xs"
+              disabled={busy}
+            >
+              {loading === 'email'
+                ? mode === 'signup'
+                  ? 'Creating account…'
+                  : 'Signing in…'
+                : mode === 'signup'
+                  ? 'Create account'
+                  : 'Sign in with email'}
+            </Button>
+          </form>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-zinc-800" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">or</span>
+            <div className="h-px flex-1 bg-zinc-800" />
+          </div>
+
           <Button
+            type="button"
             className="w-full min-h-12 bg-white text-black hover:bg-zinc-200 font-bold uppercase tracking-widest text-xs"
             onClick={() => void onGoogle()}
             disabled={busy}
           >
-            {busy ? 'Signing in…' : 'Continue with Google'}
+            {loading === 'google' ? 'Signing in…' : 'Continue with Google'}
           </Button>
         </CardContent>
       </Card>

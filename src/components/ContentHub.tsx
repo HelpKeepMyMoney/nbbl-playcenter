@@ -59,9 +59,11 @@ export function ContentHub({
       <header className="sticky top-0 z-40 w-full border-b border-zinc-800/80 bg-black/90 backdrop-blur-md pt-[env(safe-area-inset-top)]">
         <div className="container mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
-              <span className="text-xs sm:text-sm font-black">NB</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt=""
+              className="h-9 w-9 sm:h-10 sm:w-10 object-contain shrink-0"
+            />
             <div className="min-w-0">
               <h1 className="font-display text-base sm:text-lg font-black tracking-tight uppercase italic truncate">
                 PlayCenter
@@ -104,12 +106,12 @@ export function ContentHub({
       <main className="container mx-auto px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
         <section className="relative h-[200px] sm:h-[300px] md:h-[380px] rounded-2xl md:rounded-3xl overflow-hidden border border-zinc-800 group">
           <img
-            src="https://picsum.photos/seed/nbbl-hero/1200/600"
+            src="https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&q=80&w=2000"
             alt=""
-            className="h-full w-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-1000 motion-reduce:group-hover:scale-100"
+            className="h-full w-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-1000 motion-reduce:group-hover:scale-100"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent p-4 sm:p-8 flex flex-col justify-end gap-2 sm:gap-4">
+          <div className="absolute inset-0 hero-gradient-nbbl p-4 sm:p-8 flex flex-col justify-end gap-2 sm:gap-4">
             <Badge className="w-fit bg-orange-600 text-[10px] font-black uppercase tracking-widest">Your library</Badge>
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-black tracking-tight uppercase italic leading-none max-w-xl">
               Hoop → <span className="text-orange-600">capture</span> → own

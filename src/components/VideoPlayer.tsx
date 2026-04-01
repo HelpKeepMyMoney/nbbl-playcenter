@@ -45,9 +45,7 @@ export function VideoPlayer({ video, onClose }: VideoPlayerProps) {
             <div className="md:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                    <span className="text-sm font-bold text-orange-500">NB</span>
-                  </div>
+                  <img src="/logo.png" alt="" className="h-10 w-10 object-contain shrink-0" />
                   <div>
                     <p className="text-sm font-bold">Your clip</p>
                     <p className="text-[11px] text-zinc-500">{format(video.createdAt, 'MMMM d, yyyy')}</p>

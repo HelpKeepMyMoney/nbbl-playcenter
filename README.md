@@ -19,10 +19,10 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 - **Sign-in:** Google (popup) or **email/password** with **Sign in** / **Sign up** on the same screen; clips and files scoped to `request.auth.uid`
 - **Branding:** NBBL mark from `public/logo.png` on the sign-in screen, hub header, and video player details (replace the file to update artwork everywhere it is referenced)
-- `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close; on phones, **switch front/rear camera** before recording (swap control on the live preview in `Recorder.tsx`)
+- `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close; on phones, **switch front/rear camera** before recording (swap control on the live preview in `Recorder.tsx`). **Uploaded `durationSec`** uses **wall-clock recording time** on stop (WebM metadata is often wrong/`Infinity` in browsers—avoided so stats are not stuck at 1:00)
 - Client-generated **JPEG thumbnails** uploaded with each video
 - Hub: category filters, search (title + tags), loading and error states
-- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation through your library (same order as the hub), **stats** from real metadata (duration, category, tag count, position in library), **Like** (stored per device in `localStorage` via `clipLikes.ts`), **Share** (Web Share API when available, otherwise copy video URL to clipboard), **Download** (`getBlob` + object URL as `.webm`; requires **Storage bucket CORS** — see below — otherwise falls back to opening the video URL in a new tab)
+- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation through your library (same order as the hub), **stats** from real metadata (duration, category, tag count, position in library), **Like** / **Share** / **Download**, **Delete clip** (removes Firestore doc + Storage video/thumbnail for that clip; clears local like). Modal uses **scroll + `max-h` / safe-area** so the full panel (including stats and delete) fits on small viewports and Vercel/mobile browsers
 - **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site hero (companion `nbbl` project `index.html`; `.hero-gradient-nbbl` in `src/index.css`)
 - **Mobile-first:** compact hero, fixed bottom **Hub | Record** bar, safe-area padding, large touch targets
 
@@ -30,15 +30,15 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 | Path | Purpose |
 | ---- | ------- |
-| `src/App.tsx` | Auth gate, Firestore clip subscription; recorder + player modals (player gets full clip list + user label) |
+| `src/App.tsx` | Auth gate, Firestore clip subscription; recorder + player modals; `handleDeleteClip` + **`useCallback` before any early return** (Rules of Hooks) |
 | `src/components/ContentHub.tsx` | Library grid, filters, header, bottom nav |
-| `src/components/Recorder.tsx` | Camera (`getUserMedia` with `facingMode`), front/rear toggle, record/stop, save → upload |
+| `src/components/Recorder.tsx` | Camera (`getUserMedia` with `facingMode`), front/rear toggle, record/stop; save uses **wall-clock** duration + safer blob metadata fallback |
 | `src/components/SignInScreen.tsx` | Email/password (sign in & sign up), Google sign-in, or “configure Firebase” message |
-| `src/components/VideoPlayer.tsx` | Clip modal: playback, library nav, stats, like / share / download (`getBlob` + `videoStoragePath`; needs bucket CORS) |
+| `src/components/VideoPlayer.tsx` | Clip modal: playback (capped video height), scrollable body, library nav, stats, like / share / download / **delete** (`getBlob` + `videoStoragePath`; bucket CORS for download) |
 | `src/lib/firebase.ts` | App init from `VITE_FIREBASE_*` |
 | `src/lib/auth.ts` | Google + email/password auth, `signOut`, `onAuthStateChanged`, `formatAuthError` |
-| `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip`; maps Firestore → `VideoMetadata` (incl. `durationSec`, `videoStoragePath`) |
-| `src/lib/clipLikes.ts` | Per-clip like toggles persisted in `localStorage` |
+| `src/lib/clips.ts` | `subscribeToMyClips`, `uploadClip`, **`deleteClip`** (Storage + Firestore); maps Firestore → `VideoMetadata` (incl. `durationSec`, `videoStoragePath`, `thumbnailStoragePath`) |
+| `src/lib/clipLikes.ts` | Per-clip likes in `localStorage`; **`removeClipLike`** when a clip is deleted |
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `firestore.rules` / `storage.rules` | Owner-only security rules |
 | `firestore.indexes.json` | Composite index: `userId` + `createdAt` desc |

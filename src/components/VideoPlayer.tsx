@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
@@ -14,7 +15,7 @@ import {Badge} from '@/components/ui/badge';
 import {motion} from 'motion/react';
 import {VideoMetadata} from '@/src/types';
 import {format} from 'date-fns';
-import {isClipLiked, toggleClipLike} from '@/src/lib/clipLikes';
+import {isClipLiked, removeClipLike, toggleClipLike} from '@/src/lib/clipLikes';
 import {getBlob, ref} from 'firebase/storage';
 import {getFirebaseStorage} from '@/src/lib/firebase';
 
@@ -26,6 +27,8 @@ interface VideoPlayerProps {
   onClose: () => void;
   /** Shown next to avatar (e.g. display name or email) */
   userLabel: string;
+  /** Permanently delete clip (Storage + Firestore); parent updates selection or closes. */
+  onDeleteClip: (video: VideoMetadata) => Promise<void>;
 }
 
 function safeDownloadBasename(title: string): string {
@@ -39,13 +42,17 @@ export function VideoPlayer({
   onSelectVideo,
   onClose,
   userLabel,
+  onDeleteClip,
 }: VideoPlayerProps) {
   const [liked, setLiked] = useState(() => isClipLiked(video.id));
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     setLiked(isClipLiked(video.id));
+    setDeleteError(null);
   }, [video.id]);
 
   useEffect(() => {
@@ -120,6 +127,26 @@ export function VideoPlayer({
     }
   }, [video.title, video.videoStoragePath, video.videoUrl]);
 
+  const handleDeleteClip = useCallback(async () => {
+    if (
+      !window.confirm(
+        'Delete this clip permanently? The video and thumbnail will be removed from your library.',
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteClip(video);
+      removeClipLike(video.id);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Could not delete clip');
+    } finally {
+      setDeleting(false);
+    }
+  }, [onDeleteClip, video]);
+
   const positionLabel =
     currentIndex >= 0 && videos.length > 0
       ? `${currentIndex + 1} of ${videos.length}`
@@ -130,9 +157,9 @@ export function VideoPlayer({
       initial={{opacity: 0}}
       animate={{opacity: 1}}
       exit={{opacity: 0}}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-3 sm:p-4 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto overscroll-contain bg-black/90 p-3 sm:p-4 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]"
     >
-      <Card className="w-full max-w-4xl max-h-[100dvh] flex flex-col bg-zinc-950 border-zinc-800 text-white overflow-hidden shadow-2xl">
+      <Card className="my-auto w-full max-w-4xl min-h-0 gap-0 py-0 max-h-[calc(100dvh-1.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex flex-col bg-zinc-950 border-zinc-800 text-white overflow-hidden shadow-2xl">
         <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-zinc-800 p-3 sm:p-4 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Badge className="shrink-0 bg-orange-600 text-[10px] font-bold uppercase tracking-wider">
@@ -153,14 +180,14 @@ export function VideoPlayer({
           </Button>
         </CardHeader>
 
-        <CardContent className="p-0 flex flex-col min-h-0 overflow-y-auto">
-          <div className="relative aspect-video bg-black shrink-0">
+        <CardContent className="flex flex-1 flex-col min-h-0 overflow-y-auto p-0">
+          <div className="relative flex w-full shrink-0 items-center justify-center bg-black max-h-[min(48dvh,56.25vw)] min-h-[10rem] sm:max-h-[min(60dvh,56.25vw)]">
             <video
               src={video.videoUrl}
               controls
               autoPlay
               playsInline
-              className="h-full w-full object-contain"
+              className="max-h-[min(48dvh,56.25vw)] w-full object-contain sm:max-h-[min(60dvh,56.25vw)]"
             />
           </div>
 
@@ -175,7 +202,7 @@ export function VideoPlayer({
               size="sm"
               className="min-h-11 flex-1 sm:flex-none border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
               onClick={goNewer}
-              disabled={!canGoNewer}
+              disabled={!canGoNewer || deleting}
               aria-label="Newer clip in library"
             >
               <ChevronLeft className="h-4 w-4 sm:mr-1" />
@@ -190,7 +217,7 @@ export function VideoPlayer({
               size="sm"
               className="min-h-11 flex-1 sm:flex-none border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
               onClick={goOlder}
-              disabled={!canGoOlder}
+              disabled={!canGoOlder || deleting}
               aria-label="Older clip in library"
             >
               <span className="hidden sm:inline">Older</span>
@@ -198,7 +225,7 @@ export function VideoPlayer({
             </Button>
           </div>
 
-          <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+          <div className="grid grid-cols-1 gap-6 p-4 pb-6 sm:gap-8 sm:p-6 md:grid-cols-3 md:pb-8">
             <div className="md:col-span-2 space-y-4">
               <div className="flex items-center gap-4">
                 <img src="/logo.png" alt="" className="h-10 w-10 object-contain shrink-0" />
@@ -239,6 +266,7 @@ export function VideoPlayer({
                   type="button"
                   className={`w-full min-h-11 ${liked ? 'bg-zinc-800 hover:bg-zinc-700 text-orange-500 border border-orange-600' : 'bg-orange-600 hover:bg-orange-700'}`}
                   onClick={handleLike}
+                  disabled={deleting}
                   aria-pressed={liked}
                   aria-label={liked ? 'Unlike this clip' : 'Like this clip'}
                 >
@@ -250,6 +278,7 @@ export function VideoPlayer({
                   variant="outline"
                   className="w-full min-h-11 border-zinc-800 bg-zinc-900 hover:bg-zinc-800"
                   onClick={() => void handleShare()}
+                  disabled={deleting}
                 >
                   <Share2 className="mr-2 h-4 w-4" /> Share
                 </Button>
@@ -258,7 +287,7 @@ export function VideoPlayer({
                   variant="outline"
                   className="w-full min-h-11 border-zinc-800 bg-zinc-900 hover:bg-zinc-800"
                   onClick={() => void handleDownload()}
-                  disabled={downloading}
+                  disabled={downloading || deleting}
                   aria-label="Download video file"
                 >
                   {downloading ? (
@@ -267,6 +296,22 @@ export function VideoPlayer({
                     <Download className="mr-2 h-4 w-4" />
                   )}
                   {downloading ? 'Downloading…' : 'Download'}
+                </Button>
+                {deleteError && <p className="text-xs text-red-400 text-center">{deleteError}</p>}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full min-h-11 border-red-900/60 bg-red-950/30 text-red-300 hover:bg-red-950/50 hover:text-red-200"
+                  onClick={() => void handleDeleteClip()}
+                  disabled={deleting || downloading}
+                  aria-label="Delete clip permanently"
+                >
+                  {deleting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  {deleting ? 'Deleting…' : 'Delete clip'}
                 </Button>
               </div>
 

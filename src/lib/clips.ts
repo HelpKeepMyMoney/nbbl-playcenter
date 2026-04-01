@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -9,7 +10,13 @@ import {
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
-import {getDownloadURL, ref, uploadBytes, uploadBytesResumable} from 'firebase/storage';
+import {
+  deleteObject,
+  getDownloadURL,
+  ref,
+  uploadBytes,
+  uploadBytesResumable,
+} from 'firebase/storage';
 import type {VideoCategory, VideoMetadata} from '@/src/types';
 import {formatDurationSec} from './duration';
 import {getFirebaseDb, getFirebaseStorage} from './firebase';
@@ -50,6 +57,7 @@ async function docToVideoMetadata(id: string, data: ClipDoc): Promise<VideoMetad
     thumbnailUrl,
     videoUrl,
     videoStoragePath: data.videoStoragePath ?? '',
+    thumbnailStoragePath: data.thumbnailStoragePath ?? '',
     duration: formatDurationSec(durationSec),
     durationSec,
     createdAt: data.createdAt.toDate(),
@@ -136,4 +144,43 @@ export async function uploadClip(
     createdAt: Timestamp.now(),
     tags: payload.tags,
   } satisfies ClipDoc);
+}
+
+function storageObjectNotFound(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'code' in e &&
+    (e as {code?: string}).code === 'storage/object-not-found'
+  );
+}
+
+async function deleteStorageObject(path: string): Promise<void> {
+  if (!path) return;
+  const storage = getFirebaseStorage();
+  try {
+    await deleteObject(ref(storage, path));
+  } catch (e) {
+    if (!storageObjectNotFound(e)) throw e;
+  }
+}
+
+/** Removes clip doc and both Storage objects (owner-only; paths must be under `clips/{userId}/`). */
+export async function deleteClip(
+  userId: string,
+  clip: Pick<VideoMetadata, 'id' | 'videoStoragePath' | 'thumbnailStoragePath'>,
+): Promise<void> {
+  const prefix = `clips/${userId}/`;
+  if (
+    !clip.videoStoragePath.startsWith(prefix) ||
+    !clip.thumbnailStoragePath.startsWith(prefix)
+  ) {
+    throw new Error('Invalid clip storage paths');
+  }
+  await Promise.all([
+    deleteStorageObject(clip.videoStoragePath),
+    deleteStorageObject(clip.thumbnailStoragePath),
+  ]);
+  const db = getFirebaseDb();
+  await deleteDoc(doc(db, 'clips', clip.id));
 }

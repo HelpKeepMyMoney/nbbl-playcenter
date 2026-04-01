@@ -46,6 +46,8 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const recordStartRef = useRef<number>(0);
+  /** Wall-clock length of the last finished recording (WebM `duration` is often Infinity until fully parsed). */
+  const recordedDurationSecRef = useRef<number | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previewObjectUrlRef = useRef<string | null>(null);
 
@@ -132,6 +134,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     if (!stream) return;
 
     chunksRef.current = [];
+    recordedDurationSecRef.current = null;
     const mime = pickRecorderMimeType();
     const mediaRecorder = mime
       ? new MediaRecorder(stream, {mimeType: mime})
@@ -145,11 +148,16 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     mediaRecorder.onstop = () => {
       const blobType = mime || 'video/webm';
       const blob = new Blob(chunksRef.current, {type: blobType});
+      const elapsedMs = Date.now() - recordStartRef.current;
+      recordedDurationSecRef.current = Math.min(
+        Math.max(0, elapsedMs / 1000),
+        MAX_RECORD_MS / 1000,
+      );
       setRecordedBlob(blob);
     };
 
-    mediaRecorder.start(200);
     recordStartRef.current = Date.now();
+    mediaRecorder.start(200);
     setRemainingMs(MAX_RECORD_MS);
     setIsRecording(true);
 
@@ -166,25 +174,58 @@ export function Recorder({onSave, onClose}: RecorderProps) {
 
   const discardRecording = () => {
     revokePreview();
+    recordedDurationSecRef.current = null;
     setRecordedBlob(null);
     setUploadError(null);
   };
 
-  const readDurationSec = (blob: Blob): Promise<number> => {
+  /** Fallback when wall-clock ref missing — WebM from MediaRecorder often reports Infinity/NaN on first metadata. */
+  const readDurationSecFromBlob = (blob: Blob): Promise<number> => {
     return new Promise(resolve => {
       const url = URL.createObjectURL(blob);
       const v = document.createElement('video');
-      v.preload = 'metadata';
+      v.preload = 'auto';
+      v.muted = true;
+      v.playsInline = true;
       v.src = url;
-      v.addEventListener('loadedmetadata', () => {
+
+      let settled = false;
+      const cap = MAX_RECORD_MS / 1000;
+      const finish = (sec: number) => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        resolve(Math.min(Math.max(0, sec), cap));
+      };
+
+      const tryRead = (): number | null => {
+        try {
+          if (v.seekable && v.seekable.length > 0) {
+            const end = v.seekable.end(v.seekable.length - 1);
+            if (Number.isFinite(end) && end > 0) return end;
+          }
+        } catch {
+          /* ignore */
+        }
         const d = v.duration;
-        URL.revokeObjectURL(url);
-        resolve(Number.isFinite(d) ? d : MAX_RECORD_MS / 1000);
-      });
-      v.addEventListener('error', () => {
-        URL.revokeObjectURL(url);
-        resolve(MAX_RECORD_MS / 1000);
-      });
+        if (Number.isFinite(d) && d > 0 && d < cap + 1) return d;
+        return null;
+      };
+
+      const onProbe = () => {
+        const n = tryRead();
+        if (n != null) finish(n);
+      };
+
+      v.addEventListener('loadedmetadata', onProbe);
+      v.addEventListener('durationchange', onProbe);
+      v.addEventListener('loadeddata', onProbe);
+      v.addEventListener('error', () => finish(0));
+
+      window.setTimeout(() => {
+        const n = tryRead();
+        finish(n ?? 0);
+      }, 2500);
     });
   };
 
@@ -193,7 +234,11 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     setUploadError(null);
     setUploading(true);
     try {
-      const durationSec = await readDurationSec(recordedBlob);
+      const wallSec = recordedDurationSecRef.current;
+      const durationSec =
+        wallSec != null && wallSec >= 0
+          ? wallSec
+          : await readDurationSecFromBlob(recordedBlob);
       const thumbnailBlob = await captureThumbnailFromVideoBlob(recordedBlob);
       const trimmedDuration = Math.min(durationSec, MAX_RECORD_MS / 1000);
       await onSave({

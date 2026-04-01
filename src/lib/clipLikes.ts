@@ -26,3 +26,10 @@ export function toggleClipLike(id: string): boolean {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
   return set.has(id);
 }
+
+export function removeClipLike(id: string): void {
+  const set = readIds();
+  if (!set.has(id)) return;
+  set.delete(id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+}

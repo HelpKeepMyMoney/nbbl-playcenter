@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import type {User} from 'firebase/auth';
 import {ContentHub} from './components/ContentHub';
 import {Recorder} from './components/Recorder';
@@ -12,7 +12,7 @@ import {VideoPlayer} from './components/VideoPlayer';
 import {VideoMetadata} from './types';
 import {AnimatePresence} from 'motion/react';
 import {signOutUser, subscribeAuth} from './lib/auth';
-import {subscribeToMyClips, uploadClip} from './lib/clips';
+import {deleteClip, subscribeToMyClips, uploadClip} from './lib/clips';
 import {isFirebaseConfigured} from './lib/firebase';
 
 export default function App() {
@@ -59,6 +59,18 @@ export default function App() {
     return unsub;
   }, [user]);
 
+  const handleDeleteClip = useCallback(
+    async (v: VideoMetadata) => {
+      if (!user) return;
+      const idx = videos.findIndex(x => x.id === v.id);
+      const next: VideoMetadata | null =
+        videos.length <= 1 ? null : idx <= 0 ? videos[1]! : videos[idx - 1]!;
+      await deleteClip(user.uid, v);
+      setSelectedVideo(current => (current?.id === v.id ? next : current));
+    },
+    [user, videos],
+  );
+
   if (!authReady) {
     return (
       <div className="min-h-dvh flex items-center justify-center bg-black text-zinc-500 text-sm">
@@ -100,6 +112,7 @@ export default function App() {
             onSelectVideo={setSelectedVideo}
             onClose={() => setSelectedVideo(null)}
             userLabel={user.displayName || user.email || 'You'}
+            onDeleteClip={handleDeleteClip}
           />
         )}
       </AnimatePresence>

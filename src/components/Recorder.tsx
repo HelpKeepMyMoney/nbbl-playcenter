@@ -1,4 +1,4 @@
-import React, {useState, useRef, useEffect, useCallback} from 'react';
+import React, {useState, useRef, useEffect, useLayoutEffect, useCallback} from 'react';
 import {Camera, StopCircle, Save, X, Trash2, SwitchCamera, Upload, Scissors} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle, CardDescription} from '@/components/ui/card';
@@ -17,6 +17,13 @@ import {
 } from '@/src/lib/videoProcess';
 
 const MAX_RECORD_MS = MAX_CLIP_DURATION_SEC * 1000;
+
+function isLikelyVideoFile(file: File): boolean {
+  if (file.type.startsWith('video/')) return true;
+  // Some mobile pickers omit MIME type; accept common extensions only.
+  if (file.type !== '' && file.type !== 'application/octet-stream') return false;
+  return /\.(mp4|m4v|mov|webm|mkv|3gp|avi)$/i.test(file.name);
+}
 
 function pickRecorderMimeType(): string {
   const candidates = [
@@ -53,6 +60,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const [trimStart, setTrimStart] = useState(0);
   const [trimEnd, setTrimEnd] = useState(MAX_CLIP_DURATION_SEC);
   const [durationLoading, setDurationLoading] = useState(false);
+  const [previewPlaybackHint, setPreviewPlaybackHint] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
@@ -71,17 +79,6 @@ export function Recorder({onSave, onClose}: RecorderProps) {
       previewObjectUrlRef.current = null;
     }
   }, []);
-
-  const setPreviewFromBlob = useCallback(
-    (blob: Blob | null) => {
-      revokePreview();
-      if (!blob || !previewVideoRef.current) return;
-      const u = URL.createObjectURL(blob);
-      previewObjectUrlRef.current = u;
-      previewVideoRef.current.src = u;
-    },
-    [revokePreview],
-  );
 
   useEffect(() => {
     if (recordedBlob) return;
@@ -120,14 +117,165 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     };
   }, [facingMode, revokePreview, recordedBlob]);
 
-  useEffect(() => {
-    if (recordedBlob) {
-      setPreviewFromBlob(recordedBlob);
-    } else {
+  // Attach object URL synchronously after the preview <video> mounts — useEffect can run before
+  // the ref exists, which left library uploads with a blank player while duration still loaded.
+  useLayoutEffect(() => {
+    if (!recordedBlob) {
       revokePreview();
-      if (previewVideoRef.current) previewVideoRef.current.removeAttribute('src');
+      previewVideoRef.current?.removeAttribute('src');
+      return;
     }
-  }, [recordedBlob, setPreviewFromBlob, revokePreview]);
+
+    let cancelled = false;
+    let rafId = 0;
+    let attempts = 0;
+    const maxAttempts = 24;
+
+    const attach = () => {
+      if (cancelled) return;
+      const el = previewVideoRef.current;
+      if (el) {
+        revokePreview();
+        if (cancelled) return;
+        const u = URL.createObjectURL(recordedBlob);
+        previewObjectUrlRef.current = u;
+        el.src = u;
+        el.load();
+        return;
+      }
+      if (attempts++ < maxAttempts) {
+        rafId = requestAnimationFrame(attach);
+      }
+    };
+
+    attach();
+    return () => {
+      cancelled = true;
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [recordedBlob, revokePreview]);
+
+  /** Nudge the preview decoder (seek + brief play) and detect unsupported codecs (e.g. HEVC on Windows). */
+  useEffect(() => {
+    if (!recordedBlob) {
+      setPreviewPlaybackHint(null);
+      return;
+    }
+
+    const el = previewVideoRef.current;
+    if (!el) return;
+
+    let cancelled = false;
+    let kicked = false;
+
+    const onDecodeError = () => {
+      if (!cancelled) {
+        setPreviewPlaybackHint(
+          'This video failed to load in the player (file may be corrupt or use an unsupported codec).',
+        );
+      }
+    };
+    el.addEventListener('error', onDecodeError);
+
+    const waitNextFrame = (video: HTMLVideoElement) =>
+      new Promise<void>(resolve => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        const tid = window.setTimeout(finish, 650);
+        const rvfc = (
+          video as HTMLVideoElement & {requestVideoFrameCallback?: (cb: () => void) => void}
+        ).requestVideoFrameCallback;
+        if (typeof rvfc === 'function') {
+          rvfc.call(video, () => {
+            clearTimeout(tid);
+            finish();
+          });
+        }
+      });
+
+    const kickPreview = async () => {
+      if (cancelled || kicked) return;
+      kicked = true;
+
+      el.muted = true;
+      el.playsInline = true;
+      const dur = Number.isFinite(el.duration) ? el.duration : 0;
+      const bump = dur > 0 ? Math.min(0.15, Math.max(0.02, dur * 0.04)) : 0.1;
+      try {
+        el.currentTime = bump;
+      } catch {
+        /* ignore */
+      }
+      await new Promise<void>(resolve => {
+        const tid = window.setTimeout(resolve, 2000);
+        el.addEventListener('seeked', () => {
+          clearTimeout(tid);
+          resolve();
+        }, {once: true});
+      });
+      if (cancelled) return;
+
+      try {
+        await el.play();
+      } catch {
+        /* autoplay rules — user can still use controls */
+      }
+      await waitNextFrame(el);
+      if (cancelled) return;
+      el.pause();
+      try {
+        el.currentTime = 0;
+      } catch {
+        /* ignore */
+      }
+      await new Promise(r => window.setTimeout(r, 80));
+      if (cancelled) return;
+
+      if (el.videoWidth < 2 || el.videoHeight < 2) {
+        setPreviewPlaybackHint(
+          'This browser cannot decode this clip (common: iPhone HEVC / “High Efficiency” on Windows Chrome or Edge). Re-export as H.264 / “Most compatible” and upload again. Saving uses the same decoder and will usually fail until the file is re-encoded.',
+        );
+      } else {
+        setPreviewPlaybackHint(null);
+      }
+    };
+
+    const scheduleKick = () => {
+      void kickPreview();
+    };
+
+    const onLoadedMetadata = () => {
+      window.requestAnimationFrame(scheduleKick);
+    };
+
+    if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      scheduleKick();
+    } else {
+      el.addEventListener('loadeddata', scheduleKick, {once: true});
+      el.addEventListener('loadedmetadata', onLoadedMetadata, {once: true});
+    }
+
+    const lateHintTid = window.setTimeout(() => {
+      if (cancelled || el.error) return;
+      if (el.videoWidth < 2 || el.videoHeight < 2) {
+        setPreviewPlaybackHint(
+          'This browser cannot decode this clip (common: iPhone HEVC on Windows). Re-export as H.264 / “Most compatible” and upload again.',
+        );
+      }
+    }, 4500);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(lateHintTid);
+      el.removeEventListener('error', onDecodeError);
+      el.removeEventListener('loadeddata', scheduleKick);
+      el.removeEventListener('loadedmetadata', onLoadedMetadata);
+    };
+  }, [recordedBlob]);
 
   useEffect(() => {
     if (!recordedBlob) {
@@ -234,17 +382,19 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     setMakePublic(false);
     setClipSource('camera');
     setFullDurationSec(null);
+    setPreviewPlaybackHint(null);
   };
 
   const onPickLibraryVideo = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('video/')) {
+    if (!isLikelyVideoFile(file)) {
       setUploadError('Please choose a video file.');
       return;
     }
     setUploadError(null);
+    setPreviewPlaybackHint(null);
     setClipSource('library');
     setRecordedBlob(file);
   }, []);
@@ -354,6 +504,8 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                 ref={previewVideoRef}
                 controls
                 playsInline
+                preload="auto"
+                muted
                 className="h-full w-full object-cover"
               />
             )}
@@ -394,6 +546,14 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                 </Badge>
               </div>
             )}
+
+            {recordedBlob && previewPlaybackHint ? (
+              <div className="absolute inset-x-0 bottom-0 p-3 bg-black/85 border-t border-zinc-800">
+                <p className="text-[11px] sm:text-xs text-amber-100/95 leading-snug text-center">
+                  {previewPlaybackHint}
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <div className="p-4 sm:p-6 space-y-6 safe-pad-bottom">

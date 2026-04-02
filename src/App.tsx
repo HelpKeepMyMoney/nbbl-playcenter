@@ -191,6 +191,15 @@ export default function App() {
   }, [feedScope]);
 
   const displayVideos = feedScope === 'mine' ? myVideos : communityVideos;
+
+  /** Keep the open player’s clip in sync with the hub list (e.g. likeCount after toggling a like). */
+  useEffect(() => {
+    setSelectedVideo(current => {
+      if (!current) return current;
+      const fresh = displayVideos.find(v => v.id === current.id);
+      return fresh ?? current;
+    });
+  }, [displayVideos]);
   const displayLoading = feedScope === 'mine' ? myClipsLoading : communityLoading;
   const displayError = feedScope === 'mine' ? myClipsError : communityError;
 

@@ -57,6 +57,11 @@ export function VideoPlayer({
   onDeleteClip,
 }: VideoPlayerProps) {
   const [liked, setLiked] = useState(false);
+  const [likeCountDisplay, setLikeCountDisplay] = useState(() =>
+    typeof video.likeCount === 'number' && Number.isFinite(video.likeCount)
+      ? Math.max(0, Math.floor(video.likeCount))
+      : 0,
+  );
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -72,6 +77,12 @@ export function VideoPlayer({
     setShareOnLocal(clipRequestsCommunityShare(video.communityVisibility));
     setPublicError(null);
   }, [video.id, video.communityVisibility]);
+
+  useEffect(() => {
+    const n = video.likeCount;
+    const k = typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+    setLikeCountDisplay(k);
+  }, [video.id, video.likeCount]);
 
   useEffect(() => {
     const uid = getFirebaseAuth().currentUser?.uid;
@@ -108,6 +119,7 @@ export function VideoPlayer({
     try {
       const next = await toggleClipLikeFirestore(video.id, uid);
       setLiked(next);
+      setLikeCountDisplay(c => Math.max(0, c + (next ? 1 : -1)));
     } catch (e) {
       setShareHint(e instanceof Error ? e.message : 'Could not update like');
     }
@@ -213,11 +225,8 @@ export function VideoPlayer({
 
   const clipOwnerLabel = video.ownerDisplayName?.trim() || 'Player';
 
-  const likeCountLabel = (() => {
-    const n = video.likeCount;
-    const k = typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
-    return k > 999 ? `${(k / 1000).toFixed(1)}k` : String(k);
-  })();
+  const likeCountLabel =
+    likeCountDisplay > 999 ? `${(likeCountDisplay / 1000).toFixed(1)}k` : String(likeCountDisplay);
 
   return (
     <motion.div

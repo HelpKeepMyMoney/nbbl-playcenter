@@ -17,15 +17,21 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 ## Features
 
+### Changelog (April 2026)
+
+- **Hub (`ContentHub`):** NBBL logo in the **footer**; logos in **header** and **footer** link to [nbbl.vercel.app](https://nbbl.vercel.app/) (new tab).
+- **Recorder:** More reliable **camera-roll preview** (`useLayoutEffect` + rAF fallback, `load()`, preload, decoder nudge); **`isLikelyVideoFile`** for empty/octet-stream MIME + extension; **banner** when preview cannot decode (e.g. HEVC on Windows).
+- **Likes:** **`App`** keeps **`selectedVideo`** in sync with **`displayVideos`** so **`likeCount`** is not stale; **`VideoPlayer`** uses **optimistic like count** after toggle.
+
 ### Core (library & recording)
 
 - **Sign-in:** Google (popup) or **email/password** with **Sign in** / **Sign up** on the same screen; clips and files scoped to `request.auth.uid`
-- **Branding:** NBBL mark from `public/logo.png` on the sign-in screen, hub header, and video player details (replace the file to update artwork everywhere it is referenced)
-- **Recorder:** **Camera** (`MediaRecorder`, **60s** hard limit, countdown, front/rear switch) **or** **From camera roll** (`<input type="file" accept="video/*">`). After capture or pick, **trim** the clip with **start/end sliders** before save (still capped at 60s of output).
+- **Branding:** NBBL mark from `public/logo.png` on the sign-in screen, hub **header** and **footer**, and video player details (replace the file to update artwork everywhere it is referenced). Hub header and footer logos link to the marketing site ([nbbl.vercel.app](https://nbbl.vercel.app/)) in a **new tab** (`target="_blank"`, `rel="noopener noreferrer"`).
+- **Recorder:** **Camera** (`MediaRecorder`, **60s** hard limit, countdown, front/rear switch) **or** **From camera roll** (`<input type="file" accept="video/*">`). After capture or pick, **trim** the clip with **start/end sliders** before save (still capped at 60s of output). **Camera-roll preview** attaches the blob URL in `useLayoutEffect` (with a short `requestAnimationFrame` fallback) so the preview `<video>` ref is ready; **`video.load()`**, **`preload="auto"`**, and a **decoder kick** (seek + brief muted `play` / `requestVideoFrameCallback`) improve first-frame display. Picks with **empty or generic MIME** types are accepted when the filename looks like a video (e.g. some Android exports). If the browser cannot decode the file (often **HEVC / “High Efficiency” iPhone video on Windows Chrome/Edge**), an **amber banner** explains re-exporting as **H.264 / “Most compatible”**; **Save** uses the same decoder as the preview.
 - **Upload processing (`src/lib/videoProcess.ts`):** Clips are re-encoded in the browser (video element + `captureStream` + `MediaRecorder`) so the uploaded file stays **≤ 20 MB** (bitrate is stepped down until the cap is met). A **fast path** skips re-encode for short **full-length** camera recordings that are already under the cap. **Uploaded `durationSec`** reflects the **trimmed** segment; camera wall-clock time is still used when metadata is unreliable. Re-encoding support **varies by browser** (test camera-roll uploads on target devices).
 - Client-generated **JPEG thumbnails** uploaded with each video; Storage filenames use **`video.webm`** or **`video.mp4`** depending on the output blob type (`src/lib/clips.ts`).
 - **Hub layout:** **Hero** first, then **My clips / Community**, then a **dismissible orange banner** when a **your** clip’s **community status** changes (e.g. submitted for review, approved, denied with reason, withdrawn). Banner auto-dismisses after ~12s. Below that: errors, **category filters + search**, then the grid.
-- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation, **stats**, **Like** / **Share** / **Download**, **Delete clip** (owner only). Community clips hide delete for non-owners. **Playback is muted by default** (user can unmute with the native controls). Modal tuned for small viewports and safe-area
+- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation, **stats**, **Like** / **Share** / **Download**, **Delete clip** (owner only). Community clips hide delete for non-owners. **Like count** updates immediately after a successful toggle (**optimistic `likeCountDisplay`**) and stays aligned with Firestore when the hub list refreshes. **Playback is muted by default** (user can unmute with the native controls). Modal tuned for small viewports and safe-area
 - **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site (`.hero-gradient-nbbl` in `src/index.css`)
 - **Mobile-first:** compact hero, fixed bottom **Hub | Record** bar, safe-area padding, large touch targets
 
@@ -87,11 +93,11 @@ See `scripts/set-admin-claim.mjs` for details.
 
 | Path | Purpose |
 | ---- | ------- |
-| `src/App.tsx` | Auth, `users/{uid}` sync, my clips + Community subscriptions, **hub status banner** (visibility transitions), recorder / profile / admin / player modals |
-| `src/components/ContentHub.tsx` | Hero, **My clips / Community** (below hero), status **banner**, filters + search, header + bottom nav |
+| `src/App.tsx` | Auth, `users/{uid}` sync, my clips + Community subscriptions, **hub status banner** (visibility transitions), **re-sync `selectedVideo` from `displayVideos`** when the list updates (e.g. `likeCount`), recorder / profile / admin / player modals |
+| `src/components/ContentHub.tsx` | Hero, **My clips / Community** (below hero), status **banner**, filters + search, header + **footer** (NBBL logo + copy), bottom nav; **marketing links** on header/footer logos |
 | `src/components/Recorder.tsx` | Camera **or** file pick, **trim** sliders, transcode path, **Request Community** on save |
 | `src/components/SignInScreen.tsx` | Email/password + Google; **awaits** `users/{uid}` upsert after successful sign-in/sign-up |
-| `src/components/VideoPlayer.tsx` | **Muted** autoplay + controls, owner **Community** checkbox + status banners, **Firestore likes**, delete (owner), share/download |
+| `src/components/VideoPlayer.tsx` | **Muted** autoplay + controls, owner **Community** checkbox + status banners, **Firestore likes** (`subscribeClipLiked`, optimistic like count label), delete (owner), share/download |
 | `src/components/VideoCard.tsx` | Thumbnail grid; **Live / Review / Denied** badges on My clips |
 | `src/components/ProfilePanel.tsx` | Profile editing, password / reset, Firestore user doc + clip `ownerDisplayName` sync |
 | `src/components/AdminPanel.tsx` | Moderation queue, approve/deny, owner profile fetch |

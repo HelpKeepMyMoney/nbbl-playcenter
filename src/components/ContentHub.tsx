@@ -21,6 +21,8 @@ import {VideoMetadata, VideoCategory, type FeedScope} from '@/src/types';
 import {VideoCard} from './VideoCard';
 import {motion, AnimatePresence, useReducedMotion} from 'motion/react';
 
+const NBBL_SITE_URL = 'https://nbbl.vercel.app/';
+
 interface ContentHubProps {
   feedScope: FeedScope;
   onFeedScopeChange: (scope: FeedScope) => void;
@@ -88,11 +90,19 @@ export function ContentHub({
       <header className="sticky top-0 z-40 w-full border-b border-zinc-800/80 bg-black/90 backdrop-blur-md pt-[env(safe-area-inset-top)]">
         <div className="container mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <img
-              src="/logo.png"
-              alt=""
-              className="h-9 w-9 sm:h-10 sm:w-10 object-contain shrink-0"
-            />
+            <a
+              href={NBBL_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              aria-label="NBBL — opens in a new tab"
+            >
+              <img
+                src="/logo.png"
+                alt=""
+                className="h-9 w-9 sm:h-10 sm:w-10 object-contain"
+              />
+            </a>
             <div className="min-w-0">
               <h1 className="font-display text-base sm:text-lg font-black tracking-tight uppercase italic truncate">
                 PlayCenter
@@ -358,7 +368,16 @@ export function ContentHub({
 
       <footer className="border-t border-zinc-800 py-10 mt-12 mb-2 md:mb-0">
         <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex flex-col items-center md:items-start gap-2 text-center md:text-left">
+          <div className="flex flex-col items-center md:items-start gap-3 text-center md:text-left">
+            <a
+              href={NBBL_SITE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              aria-label="NBBL — opens in a new tab"
+            >
+              <img src="/logo.png" alt="" className="h-10 w-10 object-contain" />
+            </a>
             <p className="font-display text-sm font-black uppercase italic tracking-tight">No Backboard Basketball League</p>
             <p className="text-zinc-500 text-xs max-w-sm">
               Low tech. Low cost. High impact. Built for the milk crate era remix.

@@ -1,29 +1,53 @@
 import React, {useState} from 'react';
 import type {User} from 'firebase/auth';
-import {Search, LayoutGrid, Play, Video, Trophy, Target, Activity, LogOut, Home, CircleDot} from 'lucide-react';
+import {
+  Search,
+  LayoutGrid,
+  Play,
+  Video,
+  Trophy,
+  Target,
+  Activity,
+  LogOut,
+  Home,
+  CircleDot,
+  Users,
+  Library,
+  Shield,
+} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Badge} from '@/components/ui/badge';
-import {VideoMetadata, VideoCategory} from '@/src/types';
+import {VideoMetadata, VideoCategory, type FeedScope} from '@/src/types';
 import {VideoCard} from './VideoCard';
 import {motion, AnimatePresence, useReducedMotion} from 'motion/react';
 
 interface ContentHubProps {
+  feedScope: FeedScope;
+  onFeedScopeChange: (scope: FeedScope) => void;
   videos: VideoMetadata[];
   clipsLoading: boolean;
   clipsError: string | null;
   user: User;
+  isAdmin: boolean;
   onVideoClick: (video: VideoMetadata) => void;
   onRecordClick: () => void;
+  onOpenProfile: () => void;
+  onOpenAdmin: () => void;
   onSignOut: () => void;
 }
 
 export function ContentHub({
+  feedScope,
+  onFeedScopeChange,
   videos,
   clipsLoading,
   clipsError,
   user,
+  isAdmin,
   onVideoClick,
   onRecordClick,
+  onOpenProfile,
+  onOpenAdmin,
   onSignOut,
 }: ContentHubProps) {
   const reduceMotion = useReducedMotion();
@@ -75,13 +99,40 @@ export function ContentHub({
           </div>
 
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {isAdmin && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={onOpenAdmin}
+                  className="sm:hidden min-h-11 min-w-11 border-amber-800/60 text-amber-500"
+                  aria-label="Open admin moderation"
+                >
+                  <Shield className="h-5 w-5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onOpenAdmin}
+                  className="hidden sm:inline-flex border-amber-800/60 text-amber-500 hover:bg-amber-950/40 font-bold uppercase tracking-widest text-[10px] sm:text-xs h-9 px-3 rounded-full"
+                >
+                  <Shield className="mr-2 h-4 w-4" /> Admin
+                </Button>
+              </>
+            )}
             <Button
               onClick={onRecordClick}
               className="hidden md:inline-flex bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase tracking-widest text-[10px] sm:text-xs h-9 px-4 rounded-full"
             >
               <Video className="mr-2 h-4 w-4" /> Record
             </Button>
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 ring-offset-2 ring-offset-black focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+              aria-label="Open profile"
+            >
               {user.photoURL ? (
                 <img src={user.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               ) : (
@@ -89,7 +140,7 @@ export function ContentHub({
                   {(user.displayName || user.email || '?').slice(0, 1).toUpperCase()}
                 </div>
               )}
-            </div>
+            </button>
             <Button
               variant="ghost"
               size="icon"
@@ -104,6 +155,42 @@ export function ContentHub({
       </header>
 
       <main className="container mx-auto px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-1 p-1 bg-zinc-900 rounded-full border border-zinc-800 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onFeedScopeChange('mine')}
+              className={`
+                flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
+                ${feedScope === 'mine' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+              `}
+            >
+              <Library className="mr-1.5 h-3 w-3" />
+              My clips
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onFeedScopeChange('community')}
+              className={`
+                flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
+                ${feedScope === 'community' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+              `}
+            >
+              <Users className="mr-1.5 h-3 w-3" />
+              Community
+            </Button>
+          </div>
+          <p className="text-xs text-zinc-500 sm:text-right sm:max-w-md">
+            {feedScope === 'mine'
+              ? 'Community posts need moderator approval before they go live.'
+              : 'Approved clips from all signed-in players — newest first.'}
+          </p>
+        </div>
+
         <section className="relative h-[200px] sm:h-[300px] md:h-[380px] rounded-2xl md:rounded-3xl overflow-hidden border border-zinc-800 group">
           <img
             src="https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&q=80&w=2000"
@@ -112,13 +199,24 @@ export function ContentHub({
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 hero-gradient-nbbl p-4 sm:p-8 flex flex-col justify-end gap-2 sm:gap-4">
-            <Badge className="w-fit bg-orange-600 text-[10px] font-black uppercase tracking-widest">Your library</Badge>
+            <Badge className="w-fit bg-orange-600 text-[10px] font-black uppercase tracking-widest">
+              {feedScope === 'mine' ? 'Your library' : 'Community'}
+            </Badge>
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-black tracking-tight uppercase italic leading-none max-w-xl">
-              Hoop → <span className="text-orange-600">capture</span> → own
+              {feedScope === 'mine' ? (
+                <>
+                  Hoop → <span className="text-orange-600">capture</span> → own
+                </>
+              ) : (
+                <>
+                  Run it → <span className="text-orange-600">share</span> → inspire
+                </>
+              )}
             </h2>
             <p className="text-zinc-400 max-w-lg text-xs sm:text-sm font-medium leading-snug">
-              Document runs, highlights, and training. Clips stay private to your account until you choose to
-              share more broadly.
+              {feedScope === 'mine'
+                ? 'Request Community on a clip to send it for review. Moderators approve or deny with a reason.'
+                : 'Only moderator-approved clips appear here. Sign in to watch.'}
             </p>
             <div className="hidden sm:flex gap-3 pt-2">
               <Button
@@ -161,7 +259,7 @@ export function ContentHub({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
             <input
               type="search"
-              placeholder="Search your clips…"
+              placeholder={feedScope === 'mine' ? 'Search your clips…' : 'Search community…'}
               className="w-full min-h-11 bg-zinc-900 border border-zinc-800 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-600/50 transition-all"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -170,7 +268,9 @@ export function ContentHub({
         </div>
 
         {clipsLoading && videos.length === 0 && (
-          <p className="text-center text-zinc-500 py-12 text-sm">Loading your clips…</p>
+          <p className="text-center text-zinc-500 py-12 text-sm">
+            {feedScope === 'mine' ? 'Loading your clips…' : 'Loading community…'}
+          </p>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
@@ -184,7 +284,11 @@ export function ContentHub({
                 exit={listMotion.exit}
                 transition={{duration: reduceMotion ? 0 : 0.25}}
               >
-                <VideoCard video={video} onClick={onVideoClick} />
+                <VideoCard
+                  video={video}
+                  onClick={onVideoClick}
+                  showModerationState={feedScope === 'mine'}
+                />
               </motion.div>
             ))}
           </AnimatePresence>
@@ -196,8 +300,14 @@ export function ContentHub({
               <Search className="h-7 w-7" />
             </div>
             <div className="text-center px-4">
-              <p className="font-bold text-white">No clips yet</p>
-              <p className="text-sm mt-1">Record a run, highlight, or training session — up to 60 seconds.</p>
+              <p className="font-bold text-white">
+                {feedScope === 'mine' ? 'No clips yet' : 'No approved clips yet'}
+              </p>
+              <p className="text-sm mt-1">
+                {feedScope === 'mine'
+                  ? 'Record a run, highlight, or training session — up to 60 seconds.'
+                  : 'When moderators approve clips, they show up here.'}
+              </p>
             </div>
             <Button
               className="bg-orange-600 hover:bg-orange-700 min-h-11"

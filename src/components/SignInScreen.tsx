@@ -8,6 +8,7 @@ import {
   signUpWithEmail,
 } from '@/src/lib/auth';
 import {isFirebaseConfigured} from '@/src/lib/firebase';
+import {upsertUserProfileFromAuth} from '@/src/lib/userProfile';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -43,7 +44,10 @@ export function SignInScreen() {
     setError(null);
     setLoading('google');
     try {
-      await signInWithGoogle();
+      const u = await signInWithGoogle();
+      if (configured) {
+        await upsertUserProfileFromAuth(u);
+      }
     } catch (e) {
       setError(formatAuthError(e));
     } finally {
@@ -73,10 +77,12 @@ export function SignInScreen() {
 
     setLoading('email');
     try {
-      if (mode === 'signup') {
-        await signUpWithEmail(trimmed, password);
-      } else {
-        await signInWithEmail(trimmed, password);
+      const u =
+        mode === 'signup'
+          ? await signUpWithEmail(trimmed, password)
+          : await signInWithEmail(trimmed, password);
+      if (configured) {
+        await upsertUserProfileFromAuth(u);
       }
     } catch (err) {
       setError(formatAuthError(err));

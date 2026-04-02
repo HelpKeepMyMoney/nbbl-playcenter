@@ -9,19 +9,36 @@ import {ContentHub} from './components/ContentHub';
 import {Recorder} from './components/Recorder';
 import {SignInScreen} from './components/SignInScreen';
 import {VideoPlayer} from './components/VideoPlayer';
-import {VideoMetadata} from './types';
+import {ProfilePanel} from './components/ProfilePanel';
+import {AdminPanel} from './components/AdminPanel';
+import {VideoMetadata, type CommunityVisibility, type FeedScope} from './types';
 import {AnimatePresence} from 'motion/react';
 import {signOutUser, subscribeAuth} from './lib/auth';
-import {deleteClip, subscribeToMyClips, uploadClip} from './lib/clips';
+import {
+  deleteClip,
+  setOwnerClipCommunityVisibility,
+  subscribeToMyClips,
+  subscribeToPublishedCommunityClips,
+  uploadClip,
+} from './lib/clips';
+import {subscribeIsUserAdmin} from './lib/admin';
 import {isFirebaseConfigured} from './lib/firebase';
+import {upsertUserProfileFromAuth} from './lib/userProfile';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [videos, setVideos] = useState<VideoMetadata[]>([]);
-  const [clipsLoading, setClipsLoading] = useState(false);
-  const [clipsError, setClipsError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [myVideos, setMyVideos] = useState<VideoMetadata[]>([]);
+  const [myClipsLoading, setMyClipsLoading] = useState(false);
+  const [myClipsError, setMyClipsError] = useState<string | null>(null);
+  const [communityVideos, setCommunityVideos] = useState<VideoMetadata[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityError, setCommunityError] = useState<string | null>(null);
+  const [feedScope, setFeedScope] = useState<FeedScope>('mine');
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoMetadata | null>(null);
 
   useEffect(() => {
@@ -32,43 +49,95 @@ export default function App() {
     return subscribeAuth(u => {
       setUser(u);
       setAuthReady(true);
+      if (u && isFirebaseConfigured()) {
+        void upsertUserProfileFromAuth(u).catch(err => {
+          console.warn('[PlayCenter] Firestore users/{uid} sync failed:', err);
+        });
+      }
     });
   }, []);
 
   useEffect(() => {
     if (!user || !isFirebaseConfigured()) {
-      setVideos([]);
-      setClipsLoading(false);
-      setClipsError(null);
+      setIsAdmin(false);
       return;
     }
-    setClipsLoading(true);
-    setClipsError(null);
+    return subscribeIsUserAdmin(user.uid, setIsAdmin);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !isFirebaseConfigured()) {
+      setMyVideos([]);
+      setMyClipsLoading(false);
+      setMyClipsError(null);
+      return;
+    }
+    setMyClipsLoading(true);
+    setMyClipsError(null);
     const unsub = subscribeToMyClips(
       user.uid,
       next => {
-        setVideos(next);
-        setClipsLoading(false);
-        setClipsError(null);
+        setMyVideos(next);
+        setMyClipsLoading(false);
+        setMyClipsError(null);
       },
       err => {
-        setClipsError(err.message);
-        setClipsLoading(false);
+        setMyClipsError(err.message);
+        setMyClipsLoading(false);
       },
     );
     return unsub;
   }, [user]);
 
+  useEffect(() => {
+    if (!user || !isFirebaseConfigured()) {
+      setCommunityVideos([]);
+      setCommunityLoading(false);
+      setCommunityError(null);
+      return;
+    }
+    setCommunityLoading(true);
+    setCommunityError(null);
+    const unsub = subscribeToPublishedCommunityClips(
+      next => {
+        setCommunityVideos(next);
+        setCommunityLoading(false);
+        setCommunityError(null);
+      },
+      err => {
+        setCommunityError(err.message);
+        setCommunityLoading(false);
+      },
+    );
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    setSelectedVideo(null);
+  }, [feedScope]);
+
+  const displayVideos = feedScope === 'mine' ? myVideos : communityVideos;
+  const displayLoading = feedScope === 'mine' ? myClipsLoading : communityLoading;
+  const displayError = feedScope === 'mine' ? myClipsError : communityError;
+
   const handleDeleteClip = useCallback(
     async (v: VideoMetadata) => {
-      if (!user) return;
-      const idx = videos.findIndex(x => x.id === v.id);
+      if (!user || user.uid !== v.ownerUserId) return;
+      const list = feedScope === 'mine' ? myVideos : communityVideos;
+      const idx = list.findIndex(x => x.id === v.id);
       const next: VideoMetadata | null =
-        videos.length <= 1 ? null : idx <= 0 ? videos[1]! : videos[idx - 1]!;
-      await deleteClip(user.uid, v);
+        list.length <= 1 ? null : idx <= 0 ? list[1]! : list[idx - 1]!;
+      await deleteClip(v.ownerUserId, v);
       setSelectedVideo(current => (current?.id === v.id ? next : current));
     },
-    [user, videos],
+    [user, feedScope, myVideos, communityVideos],
+  );
+
+  const handleSetOwnerCommunityVisibility = useCallback(
+    async (clipId: string, next: CommunityVisibility) => {
+      await setOwnerClipCommunityVisibility(clipId, next);
+    },
+    [],
   );
 
   if (!authReady) {
@@ -83,24 +152,53 @@ export default function App() {
     return <SignInScreen />;
   }
 
+  const viewerIsOwner = selectedVideo ? selectedVideo.ownerUserId === user.uid : false;
+  const playerLabel =
+    selectedVideo && selectedVideo.ownerUserId === user.uid
+      ? user.displayName || user.email || 'You'
+      : 'Community';
+
   return (
     <div className="min-h-dvh bg-black font-sans selection:bg-orange-600 selection:text-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <ContentHub
-        videos={videos}
-        clipsLoading={clipsLoading}
-        clipsError={clipsError}
+        feedScope={feedScope}
+        onFeedScopeChange={setFeedScope}
+        videos={displayVideos}
+        clipsLoading={displayLoading}
+        clipsError={displayError}
         user={user}
+        isAdmin={isAdmin}
         onVideoClick={setSelectedVideo}
         onRecordClick={() => setIsRecorderOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         onSignOut={() => void signOutUser()}
       />
 
       <AnimatePresence>
         {isRecorderOpen && (
           <Recorder
-            onSave={payload => uploadClip(user.uid, payload)}
+            onSave={payload =>
+              uploadClip(user.uid, {
+                ...payload,
+                ownerDisplayName:
+                  user.displayName?.trim() || user.email || 'Player',
+              })
+            }
             onClose={() => setIsRecorderOpen(false)}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isProfileOpen && (
+          <ProfilePanel user={user} onClose={() => setIsProfileOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAdminOpen && isAdmin && (
+          <AdminPanel moderatorUid={user.uid} onClose={() => setIsAdminOpen(false)} />
         )}
       </AnimatePresence>
 
@@ -108,10 +206,12 @@ export default function App() {
         {selectedVideo && (
           <VideoPlayer
             video={selectedVideo}
-            videos={videos}
+            videos={displayVideos}
             onSelectVideo={setSelectedVideo}
             onClose={() => setSelectedVideo(null)}
-            userLabel={user.displayName || user.email || 'You'}
+            userLabel={playerLabel}
+            viewerIsOwner={viewerIsOwner}
+            onSetOwnerCommunityVisibility={handleSetOwnerCommunityVisibility}
             onDeleteClip={handleDeleteClip}
           />
         )}

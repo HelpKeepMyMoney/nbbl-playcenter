@@ -8,12 +8,20 @@ import {
   ChevronRight,
   Loader2,
   Trash2,
+  Globe,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
 import {motion} from 'motion/react';
-import {VideoMetadata} from '@/src/types';
+import type {CommunityVisibility, VideoMetadata} from '@/src/types';
+import {
+  clipIsPublishedToCommunity,
+  clipRequestsCommunityShare,
+} from '@/src/types';
 import {format} from 'date-fns';
 import {isClipLiked, removeClipLike, toggleClipLike} from '@/src/lib/clipLikes';
 import {getBlob, ref} from 'firebase/storage';
@@ -27,6 +35,10 @@ interface VideoPlayerProps {
   onClose: () => void;
   /** Shown next to avatar (e.g. display name or email) */
   userLabel: string;
+  /** Current user owns the clip — can delete and toggle Community request */
+  viewerIsOwner: boolean;
+  /** Owner-only: set Firestore `communityVisibility` */
+  onSetOwnerCommunityVisibility: (clipId: string, next: CommunityVisibility) => Promise<void>;
   /** Permanently delete clip (Storage + Firestore); parent updates selection or closes. */
   onDeleteClip: (video: VideoMetadata) => Promise<void>;
 }
@@ -42,6 +54,8 @@ export function VideoPlayer({
   onSelectVideo,
   onClose,
   userLabel,
+  viewerIsOwner,
+  onSetOwnerCommunityVisibility,
   onDeleteClip,
 }: VideoPlayerProps) {
   const [liked, setLiked] = useState(() => isClipLiked(video.id));
@@ -49,11 +63,18 @@ export function VideoPlayer({
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [shareOnLocal, setShareOnLocal] = useState(() =>
+    clipRequestsCommunityShare(video.communityVisibility),
+  );
+  const [publicBusy, setPublicBusy] = useState(false);
+  const [publicError, setPublicError] = useState<string | null>(null);
 
   useEffect(() => {
     setLiked(isClipLiked(video.id));
     setDeleteError(null);
-  }, [video.id]);
+    setShareOnLocal(clipRequestsCommunityShare(video.communityVisibility));
+    setPublicError(null);
+  }, [video.id, video.communityVisibility]);
 
   useEffect(() => {
     if (!shareHint) return;
@@ -126,6 +147,32 @@ export function VideoPlayer({
       setDownloading(false);
     }
   }, [video.title, video.videoStoragePath, video.videoUrl]);
+
+  const handleToggleCommunityShare = useCallback(
+    async (checked: boolean) => {
+      setPublicError(null);
+      setPublicBusy(true);
+      const prevVis = video.communityVisibility;
+      let next: CommunityVisibility;
+      if (!checked) {
+        next = 'private';
+      } else if (prevVis === 'published') {
+        next = 'published';
+      } else {
+        next = 'pending';
+      }
+      setShareOnLocal(checked);
+      try {
+        await onSetOwnerCommunityVisibility(video.id, next);
+      } catch (e) {
+        setShareOnLocal(clipRequestsCommunityShare(prevVis));
+        setPublicError(e instanceof Error ? e.message : 'Could not update visibility');
+      } finally {
+        setPublicBusy(false);
+      }
+    },
+    [onSetOwnerCommunityVisibility, video.id, video.communityVisibility],
+  );
 
   const handleDeleteClip = useCallback(async () => {
     if (
@@ -239,8 +286,84 @@ export function VideoPlayer({
 
               <div className="space-y-2">
                 <p className="text-sm text-zinc-300 leading-relaxed">
-                  Your {video.category} clip from NBBL PlayCenter — organized in your private library.
+                  {viewerIsOwner
+                    ? `Your ${video.category} clip. Community sharing is reviewed by a moderator before it goes live.`
+                    : `An approved ${video.category} clip in Community.`}
                 </p>
+
+                {viewerIsOwner && video.communityVisibility === 'pending' && (
+                  <div className="mt-3 rounded-lg border border-amber-800/50 bg-amber-950/25 px-3 py-2 text-sm text-amber-200 flex gap-2 items-start">
+                    <Clock className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      <span className="font-bold text-amber-100">In review</span>
+                      <span className="block text-xs text-amber-200/80 mt-0.5">
+                        A moderator will approve or deny your Community request. You’ll see the result here.
+                      </span>
+                    </span>
+                  </div>
+                )}
+
+                {viewerIsOwner && video.communityVisibility === 'published' && (
+                  <div className="mt-3 rounded-lg border border-emerald-800/50 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-200 flex gap-2 items-start">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      <span className="font-bold text-emerald-100">Approved</span>
+                      <span className="block text-xs text-emerald-200/80 mt-0.5">
+                        Your clip is live in Community. Uncheck below to remove it from Community (private again).
+                      </span>
+                    </span>
+                  </div>
+                )}
+
+                {viewerIsOwner && video.communityVisibility === 'rejected' && (
+                  <div className="mt-3 rounded-lg border border-red-900/50 bg-red-950/25 px-3 py-2 text-sm text-red-200 flex gap-2 items-start">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      <span className="font-bold text-red-100">Denied for Community</span>
+                      {video.moderationRejectionReason ? (
+                        <span className="block text-xs text-red-200/90 mt-1.5 whitespace-pre-wrap">
+                          {video.moderationRejectionReason}
+                        </span>
+                      ) : (
+                        <span className="block text-xs text-red-200/70 mt-0.5">No reason was provided.</span>
+                      )}
+                      <span className="block text-xs text-zinc-400 mt-2">
+                        Check the box below to send again for another review.
+                      </span>
+                    </span>
+                  </div>
+                )}
+
+                {viewerIsOwner && (
+                  <label className="flex items-start gap-3 mt-4 p-3 rounded-lg border border-zinc-800 bg-zinc-900/80 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-zinc-600 text-orange-600 focus:ring-orange-600 shrink-0"
+                      checked={shareOnLocal}
+                      disabled={publicBusy || deleting}
+                      onChange={e => void handleToggleCommunityShare(e.target.checked)}
+                    />
+                    <span className="text-sm text-zinc-300 flex-1 min-w-0">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <Globe className="h-3.5 w-3.5 text-emerald-400" />
+                        Request Community
+                      </span>
+                      <span className="block text-xs text-zinc-500 mt-1">
+                        When checked, moderators can approve your clip for Community. Uncheck to keep it private.
+                      </span>
+                    </span>
+                    {publicBusy ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-orange-500" />
+                    ) : null}
+                  </label>
+                )}
+                {!viewerIsOwner && clipIsPublishedToCommunity(video.communityVisibility) && (
+                  <p className="text-xs text-emerald-500/90 mt-3 flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Approved Community clip
+                  </p>
+                )}
+                {publicError && <p className="text-xs text-red-400 mt-2">{publicError}</p>}
                 <div className="flex flex-wrap gap-2">
                   {video.tags.map(tag => (
                     <Badge
@@ -298,21 +421,23 @@ export function VideoPlayer({
                   {downloading ? 'Downloading…' : 'Download'}
                 </Button>
                 {deleteError && <p className="text-xs text-red-400 text-center">{deleteError}</p>}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full min-h-11 border-red-900/60 bg-red-950/30 text-red-300 hover:bg-red-950/50 hover:text-red-200"
-                  onClick={() => void handleDeleteClip()}
-                  disabled={deleting || downloading}
-                  aria-label="Delete clip permanently"
-                >
-                  {deleting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="mr-2 h-4 w-4" />
-                  )}
-                  {deleting ? 'Deleting…' : 'Delete clip'}
-                </Button>
+                {viewerIsOwner && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full min-h-11 border-red-900/60 bg-red-950/30 text-red-300 hover:bg-red-950/50 hover:text-red-200"
+                    onClick={() => void handleDeleteClip()}
+                    disabled={deleting || downloading}
+                    aria-label="Delete clip permanently"
+                  >
+                    {deleting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    {deleting ? 'Deleting…' : 'Delete clip'}
+                  </Button>
+                )}
               </div>
 
               <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800">

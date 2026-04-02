@@ -36,6 +36,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const [remainingMs, setRemainingMs] = useState(MAX_RECORD_MS);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [makePublic, setMakePublic] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   /** Rear camera on phones (`environment`); `user` is selfie / front. */
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
@@ -177,6 +178,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     recordedDurationSecRef.current = null;
     setRecordedBlob(null);
     setUploadError(null);
+    setMakePublic(false);
   };
 
   /** Fallback when wall-clock ref missing — WebM from MediaRecorder often reports Infinity/NaN on first metadata. */
@@ -248,6 +250,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
         title: title.trim() || `NBBL ${category.toUpperCase()} — ${new Date().toLocaleDateString()}`,
         category,
         tags: ['NBBL', category],
+        requestCommunityPublic: makePublic,
       });
       onClose();
     } catch (e) {
@@ -389,6 +392,21 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                     onChange={e => setTitle(e.target.value)}
                   />
                 </div>
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950/50 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-zinc-600 text-orange-600 focus:ring-orange-600 shrink-0"
+                    checked={makePublic}
+                    disabled={uploading}
+                    onChange={e => setMakePublic(e.target.checked)}
+                  />
+                  <span className="text-sm text-zinc-300">
+                    <span className="font-medium text-white">Request Community</span>
+                    <span className="block text-xs text-zinc-500 mt-1">
+                      Sends your clip for moderator review. It appears in Community only after approval.
+                    </span>
+                  </span>
+                </label>
                 {uploadError && <p className="text-sm text-red-400">{uploadError}</p>}
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button

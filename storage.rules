@@ -1,8 +1,29 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function clipDoc(clipId) {
+      return firestore.get(/databases/(default)/documents/clips/$(clipId)).data;
+    }
+
+    function clipPublished(clipId) {
+      let c = clipDoc(clipId);
+      return c.get('communityVisibility', '') == 'published'
+        || (c.get('isPublic', false) == true && c.get('communityVisibility', '') == '');
+    }
+
     match /clips/{userId}/{clipId}/{fileName} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        clipPublished(clipId)
+      );
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /profiles/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId
+        && request.resource.size < 3 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
     }
   }
 }

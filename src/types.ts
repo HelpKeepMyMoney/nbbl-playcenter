@@ -1,5 +1,10 @@
 export type VideoCategory = 'run' | 'highlight' | 'training';
 
+export type FeedScope = 'mine' | 'community';
+
+/** Community posting workflow — only `published` appears in Community feed */
+export type CommunityVisibility = 'private' | 'pending' | 'published' | 'rejected';
+
 export interface VideoMetadata {
   id: string;
   title: string;
@@ -15,6 +20,23 @@ export interface VideoMetadata {
   createdAt: Date;
   category: VideoCategory;
   tags: string[];
+  /** Firestore `userId` — clip owner */
+  ownerUserId: string;
+  /** Snapshot of owner display name when uploaded / last profile save (for moderators) */
+  ownerDisplayName: string;
+  communityVisibility: CommunityVisibility;
+  /** Set by moderator when status is `rejected` */
+  moderationRejectionReason: string;
+  moderatedAt: Date | null;
+  moderatedBy: string | null;
+}
+
+export function clipRequestsCommunityShare(v: CommunityVisibility): boolean {
+  return v === 'pending' || v === 'published';
+}
+
+export function clipIsPublishedToCommunity(v: CommunityVisibility): boolean {
+  return v === 'published';
 }
 
 export interface User {

@@ -44,7 +44,7 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 - **Moderators:** Firestore collection **`admins`** with **document ID = Firebase Auth UID** of each admin (document body can be `{}`). Those users see an **Admin** (shield) button in the hub
 - **Admin panel:** filter **Pending / Live / Denied / Private / All**; **Approve** or **Deny** (denial **requires a reason** shown to the player). Loads **`users/{ownerUid}`** for display name + email when available. **Migrate legacy public** fixes old clips that used `isPublic` before the moderation model
 - Owner sees **In review**, **Approved**, or **Denied** (with reason) banners on their clips
-- **Storage:** clip files are readable by other signed-in users only when the clip is **published** (rules use Firestore `communityVisibility` via `firestore.get`, plus legacy `isPublic` fallback)
+- **Storage (clip objects):** readable when **you own the path** (`clips/{yourUid}/…`), when the clip is **published** in Firestore (rules use `firestore.get` on `clips/{clipId}` for `communityVisibility` / legacy `isPublic`), or when your account is an **admin** (`firestore.exists` on `admins/{uid}`) so moderators can load **pending**, **denied**, and **private** media in the admin panel
 
 ### Data model highlights
 
@@ -92,7 +92,7 @@ See `scripts/backfill-user-profiles.mjs` for details.
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `src/types.ts` | `VideoMetadata`, `CommunityVisibility`, `FeedScope`, helpers |
 | `firestore.rules` | `users`, `admins`, `clips` (owner, community read for published, admin reads/updates) |
-| `storage.rules` | `clips/{userId}/{clipId}/…` (owner or published clip), `profiles/{userId}/…` |
+| `storage.rules` | `clips/{userId}/{clipId}/…` (owner **or** published clip **or** admin), `profiles/{userId}/…` |
 | `firestore.indexes.json` | `userId`+`createdAt`, `communityVisibility`+`createdAt` |
 | `scripts/backfill-user-profiles.mjs` | Sync all Auth users → Firestore `users` (Admin SDK) |
 | `firebase.json` | CLI targets for Firestore + Storage |
@@ -135,12 +135,18 @@ firebase use your-project-id   # or rely on `.firebaserc`
 
 After rule or index changes, redeploy. New composite indexes may take a few minutes to build in the console.
 
+**Storage rules + Firestore:** In Storage rules, use **`firestore.exists()`** / **`firestore.get()`** to read Firestore (the standalone **`exists()`** helper is for Firestore rules only and will not compile correctly here).
+
+**PowerShell:** To deploy Firestore rules and Storage rules in one command, quote the `--only` value, e.g. `firebase deploy --only "firestore:rules,storage"`.
+
 ## Deploy to Vercel
 
 1. Push this repo to GitHub and import in [Vercel](https://vercel.com/) (framework: **Vite**, build `npm run build`, output `dist`).
 2. Add **`VITE_FIREBASE_*`** for **Production** (and **Preview** if needed).
 3. Firebase **Authentication → Authorized domains:** add your Vercel host.
 4. Apply **Storage CORS** on the default bucket for production.
+
+After a new Vercel deployment, ask testers to **refresh** (or reopen the tab) so the browser loads the latest JS bundle; an old tab can still run previous client code and surface confusing auth or permission errors against current Firebase rules.
 
 ## npm scripts
 

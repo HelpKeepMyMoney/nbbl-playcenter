@@ -2,6 +2,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function isAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
     function clipDoc(clipId) {
       return firestore.get(/databases/(default)/documents/clips/$(clipId)).data;
     }
@@ -15,7 +20,8 @@ service firebase.storage {
     match /clips/{userId}/{clipId}/{fileName} {
       allow read: if request.auth != null && (
         request.auth.uid == userId ||
-        clipPublished(clipId)
+        clipPublished(clipId) ||
+        isAdmin()
       );
       allow write: if request.auth != null && request.auth.uid == userId;
     }

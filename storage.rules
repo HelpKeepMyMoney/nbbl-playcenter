@@ -2,9 +2,13 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // Prefer JWT (set via Admin SDK script) so reads work even if Firestore lookups fail.
+    // Firestore `admins/{uid}` still drives the in-app Admin button and Firestore rules.
     function isAdmin() {
-      return request.auth != null
-        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+      return request.auth != null && (
+        request.auth.token.admin == true
+        || firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+      );
     }
 
     function clipDoc(clipId) {
@@ -19,9 +23,9 @@ service firebase.storage {
 
     match /clips/{userId}/{clipId}/{fileName} {
       allow read: if request.auth != null && (
+        isAdmin() ||
         request.auth.uid == userId ||
-        clipPublished(clipId) ||
-        isAdmin()
+        clipPublished(clipId)
       );
       allow write: if request.auth != null && request.auth.uid == userId;
     }

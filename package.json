@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:storage": "firebase deploy --only storage",
-    "backfill:users": "node scripts/backfill-user-profiles.mjs"
+    "backfill:users": "node scripts/backfill-user-profiles.mjs",
+    "admin:set-claim": "node scripts/set-admin-claim.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

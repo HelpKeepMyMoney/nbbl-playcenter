@@ -23,7 +23,7 @@ import {
 } from 'firebase/storage';
 import type {CommunityVisibility, VideoCategory, VideoMetadata} from '@/src/types';
 import {formatDurationSec} from './duration';
-import {getFirebaseDb, getFirebaseStorage} from './firebase';
+import {getFirebaseAuth, getFirebaseDb, getFirebaseStorage} from './firebase';
 
 export interface ClipUploadPayload {
   videoBlob: Blob;
@@ -211,7 +211,11 @@ export function subscribeToClipsForModeration(
     async snapshot => {
       const mine = ++generation;
       try {
-        const list = await Promise.all(
+        const cu = getFirebaseAuth().currentUser;
+        if (cu) {
+          await cu.getIdToken(true);
+        }
+        const list: VideoMetadata[] = await Promise.all(
           snapshot.docs.map(d =>
             docToVideoMetadata(d.id, normalizeClipDoc(d.data() as Record<string, unknown>)),
           ),

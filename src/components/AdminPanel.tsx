@@ -58,7 +58,9 @@ export function AdminPanel({moderatorUid, onClose}: AdminPanelProps) {
   }, [filter]);
 
   useEffect(() => {
-    const uids = [...new Set(clips.map(c => c.ownerUserId))];
+    const uids: string[] = [
+      ...new Set((clips as VideoMetadata[]).map(c => c.ownerUserId)),
+    ];
     if (uids.length === 0) {
       setProfilesByUid({});
       return;

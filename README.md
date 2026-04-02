@@ -41,16 +41,16 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 - **Request Community** (checkbox on save in `Recorder`, or in `VideoPlayer` for owners) sets clip status to **`pending`** — not visible in Community until approved
 - **Community** tab lists only **`communityVisibility === published`** clips (newest first)
-- **Moderators:** Firestore collection **`admins`** with **document ID = Firebase Auth UID** of each admin (document body can be `{}`). Those users see an **Admin** (shield) button in the hub
+- **Moderators:** Firestore collection **`admins`** with **document ID = Firebase Auth UID** of each admin (document body can be `{}`). Those users see an **Admin** (shield) button in the hub. For **Storage** (`getDownloadURL` on pending/denied/private clips), rules also accept an Auth **custom claim** `admin: true` (set with `npm run admin:set-claim -- <uid>` — see script below). After setting or changing claims, **sign out and sign in** so the ID token includes them
 - **Admin panel:** filter **Pending / Live / Denied / Private / All**; **Approve** or **Deny** (denial **requires a reason** shown to the player). Loads **`users/{ownerUid}`** for display name + email when available. **Migrate legacy public** fixes old clips that used `isPublic` before the moderation model
 - Owner sees **In review**, **Approved**, or **Denied** (with reason) banners on their clips
-- **Storage (clip objects):** readable when **you own the path** (`clips/{yourUid}/…`), when the clip is **published** in Firestore (rules use `firestore.get` on `clips/{clipId}` for `communityVisibility` / legacy `isPublic`), or when your account is an **admin** (`firestore.exists` on `admins/{uid}`) so moderators can load **pending**, **denied**, and **private** media in the admin panel
+- **Storage (clip objects):** readable when **you own the path** (`clips/{yourUid}/…`), when the clip is **published** in Firestore (rules use `firestore.get` on `clips/{clipId}` for `communityVisibility` / legacy `isPublic`), or when your account is an **admin** (`request.auth.token.admin == true` **or** `firestore.exists` on `admins/{uid}`) so moderators can load **pending**, **denied**, and **private** media in the admin panel
 
 ### Data model highlights
 
 - **`clips`:** `userId`, `communityVisibility` (`private` \| `pending` \| `published` \| `rejected`), `moderationRejectionReason`, `moderatedAt`, `moderatedBy`, `ownerDisplayName`, media paths, metadata
 - **`users`:** mirror of Auth profile + `createdAt` / `updatedAt` (see below)
-- **`admins`:** presence of doc `admins/{uid}` grants admin UI + rule checks
+- **`admins`:** presence of doc `admins/{uid}` grants admin UI + Firestore rule checks; Storage rules also honor optional Auth claim **`admin`** (see `scripts/set-admin-claim.mjs`)
 
 ## User profiles in Firestore
 
@@ -71,6 +71,16 @@ npm run backfill:users
 
 See `scripts/backfill-user-profiles.mjs` for details.
 
+**Moderator Storage claim** (same credentials as backfill):
+
+```bash
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\path\to\serviceAccount.json"
+npm run admin:set-claim -- YOUR_AUTH_UID
+# To remove: npm run admin:set-claim -- YOUR_AUTH_UID --remove
+```
+
+See `scripts/set-admin-claim.mjs` for details.
+
 ## Repository layout
 
 | Path | Purpose |
@@ -85,16 +95,17 @@ See `scripts/backfill-user-profiles.mjs` for details.
 | `src/components/AdminPanel.tsx` | Moderation queue, approve/deny, owner profile fetch |
 | `src/lib/firebase.ts` | App init from `VITE_FIREBASE_*` |
 | `src/lib/auth.ts` | Auth, profile photo Storage upload, `updateProfile`, password helpers, `formatAuthError` |
-| `src/lib/clips.ts` | Subscriptions, upload, delete, **setOwnerClipCommunityVisibility**, **moderateClipByAdmin**, legacy migration helper |
+| `src/lib/clips.ts` | Subscriptions, upload, delete, **setOwnerClipCommunityVisibility**, **moderateClipByAdmin**; **subscribeToClipsForModeration** refreshes **`getIdToken(true)`** before **`getDownloadURL`** so moderators’ JWTs match Storage rules |
 | `src/lib/userProfile.ts` | **`upsertUserProfileFromAuth`**, **`fetchUserProfilesByIds`** (admin) |
 | `src/lib/admin.ts` | **`subscribeIsUserAdmin`** (`admins/{uid}` doc exists) |
 | `src/lib/clipLikes.ts` | Per-clip likes in `localStorage` |
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `src/types.ts` | `VideoMetadata`, `CommunityVisibility`, `FeedScope`, helpers |
 | `firestore.rules` | `users`, `admins`, `clips` (owner, community read for published, admin reads/updates) |
-| `storage.rules` | `clips/{userId}/{clipId}/…` (owner **or** published clip **or** admin), `profiles/{userId}/…` |
+| `storage.rules` | `clips/…` read: **admin** first (`request.auth.token.admin` **or** `firestore.exists(admins/{uid})`), then owner, then published clip via `firestore.get`; `profiles/{userId}/…` |
 | `firestore.indexes.json` | `userId`+`createdAt`, `communityVisibility`+`createdAt` |
 | `scripts/backfill-user-profiles.mjs` | Sync all Auth users → Firestore `users` (Admin SDK) |
+| `scripts/set-admin-claim.mjs` | Set/remove Auth custom claim `admin` for Storage moderation reads (Admin SDK) |
 | `firebase.json` | CLI targets for Firestore + Storage |
 | `storage-cors.json` | GCS CORS for **Download** |
 | `.firebaserc` | Default Firebase **project ID** |
@@ -109,10 +120,10 @@ See `scripts/backfill-user-profiles.mjs` for details.
 4. Copy `.env.example` to **`.env.local`** and set all `VITE_FIREBASE_*` variables (Project settings → Your apps → SDK config).
 5. Deploy **Firestore rules + indexes** and **Storage rules** ([Firebase deploy](#firebase-deploy)).
 6. **Storage CORS** for **Download:** apply `storage-cors.json` with `gsutil` (see below).
-7. **Admins (optional):** In Firestore, create collection **`admins`**, add a document whose **ID** is the moderator’s Auth **UID** (empty map is fine).
+7. **Admins (optional):** In Firestore, create collection **`admins`**, add a document whose **ID** is the moderator’s Auth **UID** (empty map is fine). If the admin panel shows **`storage/unauthorized`** when opening **Pending**, deploy latest **`storage.rules`**, then run **`npm run admin:set-claim -- <that-uid>`** once (service account env same as backfill) and have that user **sign out and back in**. Ensure [cross-service Storage ↔ Firestore rules](https://firebase.google.com/docs/rules/manage-deploy#manage_permissions_for_cross-service) permissions are enabled (Firebase usually prompts on first deploy of rules that call `firestore.get` / `firestore.exists`).
 8. `npm run dev` — default **http://localhost:3000**.
 
-Never commit `.env.local` or `.env`.
+Never commit `.env.local` or `.env`. **Service account keys** (`*-firebase-adminsdk-*.json`) are listed in `.gitignore` — keep them **outside** the repo if you can; if you already committed one, run `git rm --cached <file>` and rotate the key in Google Cloud Console.
 
 ### Storage CORS (Download)
 
@@ -160,6 +171,7 @@ After a new Vercel deployment, ask testers to **refresh** (or reopen the tab) so
 | `npm run deploy:firestore` | Deploy Firestore rules + indexes |
 | `npm run deploy:storage` | Deploy Storage rules |
 | `npm run backfill:users` | Admin SDK: copy all Auth users → `users` (needs `GOOGLE_APPLICATION_CREDENTIALS`) |
+| `npm run admin:set-claim -- <uid>` | Admin SDK: set Auth custom claim `admin: true` for Storage moderation (add `--remove` to drop) |
 
 ## Git and GitHub
 

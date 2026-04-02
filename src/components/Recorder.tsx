@@ -14,6 +14,7 @@ import {
   prepareClipForUpload,
   readDurationSecFromVideoBlob,
   canSkipCameraTranscode,
+  TRANSCODE_UNSUPPORTED_HINT,
 } from '@/src/lib/videoProcess';
 
 const MAX_RECORD_MS = MAX_CLIP_DURATION_SEC * 1000;
@@ -62,6 +63,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const [durationLoading, setDurationLoading] = useState(false);
   /** Bumped on each new capture/upload so preview <video> key stays unique even if blob size matches a prior clip. */
   const [previewGeneration, setPreviewGeneration] = useState(0);
+  const [previewDecodeNote, setPreviewDecodeNote] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
@@ -163,6 +165,41 @@ export function Recorder({onSave, onClose}: RecorderProps) {
         : 'live',
     [recordedBlob, clipSource, previewGeneration],
   );
+
+  useEffect(() => {
+    if (!recordedBlob) {
+      setPreviewDecodeNote(null);
+      return;
+    }
+    const el = previewVideoRef.current;
+    if (!el?.src) return;
+    let cancelled = false;
+
+    const check = () => {
+      if (cancelled) return;
+      if (el.videoWidth >= 2 && el.videoHeight >= 2) {
+        setPreviewDecodeNote(null);
+        return;
+      }
+      if (el.error) {
+        setPreviewDecodeNote(TRANSCODE_UNSUPPORTED_HINT);
+        return;
+      }
+      setPreviewDecodeNote(
+        'If the preview stays black, this browser may not decode your file (often HEVC from iPhone on Windows). Trim/save re-encodes in the browser — if that fails too, export the clip as H.264 / “Most compatible” and upload again.',
+      );
+    };
+
+    el.addEventListener('loadeddata', check, {once: true});
+    el.addEventListener('error', check, {once: true});
+    const tid = window.setTimeout(check, 3200);
+    return () => {
+      cancelled = true;
+      clearTimeout(tid);
+      el.removeEventListener('loadeddata', check);
+      el.removeEventListener('error', check);
+    };
+  }, [recordedBlob, previewVideoKey]);
 
   useEffect(() => {
     if (!recordedBlob) {
@@ -270,6 +307,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     setMakePublic(false);
     setClipSource('camera');
     setFullDurationSec(null);
+    setPreviewDecodeNote(null);
   };
 
   const onPickLibraryVideo = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -282,6 +320,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     }
     setUploadError(null);
     setClipSource('library');
+    setPreviewDecodeNote(null);
     setPreviewGeneration(g => g + 1);
     setRecordedBlob(file);
   }, []);
@@ -433,6 +472,14 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                 </Badge>
               </div>
             )}
+
+            {recordedBlob && previewDecodeNote ? (
+              <div className="absolute inset-x-0 bottom-0 p-3 bg-black/85 border-t border-zinc-800">
+                <p className="text-[11px] sm:text-xs text-amber-100/95 leading-snug text-center">
+                  {previewDecodeNote}
+                </p>
+              </div>
+            ) : null}
 
           </div>
 

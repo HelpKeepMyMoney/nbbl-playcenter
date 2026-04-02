@@ -181,12 +181,6 @@ export default function App() {
   }, [myVideos, user]);
 
   useEffect(() => {
-    if (!hubNotice) return;
-    const t = window.setTimeout(() => setHubNotice(null), 12_000);
-    return () => clearTimeout(t);
-  }, [hubNotice]);
-
-  useEffect(() => {
     setSelectedVideo(null);
   }, [feedScope]);
 

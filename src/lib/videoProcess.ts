@@ -6,17 +6,48 @@ export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 const MIN_VIDEO_BITRATE = 350_000;
 
-/** Prefer WebM for MediaRecorder + captureStream; avoid video/mp4 here (often errors when muxing capture output). */
+/**
+ * Prefer VP8 before VP9 for canvas.captureStream output — some GPUs/browsers fail VP9 with “Encoding failed”.
+ * Omit audio codec when possible (video-only stream) via plain video/webm fallback.
+ */
 function pickRecorderMimeType(): string {
   const candidates = [
-    'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8',
     'video/webm',
   ];
   for (const t of candidates) {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }
   return '';
+}
+
+const MAX_TRANSCODE_LONG_EDGE = 1280;
+
+function canvasSizeForTranscode(videoWidth: number, videoHeight: number): {cw: number; ch: number} {
+  const max = MAX_TRANSCODE_LONG_EDGE;
+  const vw = Math.max(2, Math.floor(videoWidth));
+  const vh = Math.max(2, Math.floor(videoHeight));
+  if (vw <= max && vh <= max) return {cw: vw, ch: vh};
+  if (vw >= vh) {
+    return {cw: max, ch: Math.max(2, Math.round(vh * (max / vw)))};
+  }
+  return {cw: Math.max(2, Math.round(vw * (max / vh))), ch: max};
+}
+
+export const TRANSCODE_UNSUPPORTED_HINT =
+  'This clip uses a format your browser cannot decode or re-encode (often HEVC / “High Efficiency” from an iPhone). On the phone: duplicate or export the video as “Most compatible” / H.264, then upload again. On Windows you can also try another browser or the Microsoft HEVC Video Extensions.';
+
+async function waitForNonZeroVideoDimensions(
+  video: HTMLVideoElement,
+  timeoutMs: number,
+): Promise<void> {
+  const start = performance.now();
+  while (performance.now() - start < timeoutMs) {
+    if (video.videoWidth >= 2 && video.videoHeight >= 2) return;
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
 }
 
 function createMediaRecorder(
@@ -131,8 +162,9 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
 }
 
 /**
- * Re-encodes [trimStartSec, trimEndSec] into a new blob using MediaRecorder + captureStream.
- * Uses **video-only** capture for encoder stability (some sources’ audio tracks break VP8/VP9+Opus mux).
+ * Re-encodes [trimStartSec, trimEndSec] using **canvas.captureStream** + MediaRecorder.
+ * More reliable than HTMLVideoElement.captureStream for phone MP4/MOV; scales down to reduce encoder failures.
+ * Output is **video-only** (no audio).
  */
 async function recordSegmentToBlob(
   input: Blob,
@@ -160,23 +192,45 @@ async function recordSegmentToBlob(
     await seekTo(video, trimStartSec);
     await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
-    const cap = (video as HTMLVideoElement & {captureStream?: (fps?: number) => MediaStream})
-      .captureStream;
-    if (!cap) {
-      throw new Error('Trimming requires captureStream (try another browser).');
+    if (video.videoWidth < 2 || video.videoHeight < 2) {
+      await video.play().catch(() => {
+        throw new Error('Could not play this video for trimming.');
+      });
+      await waitForNonZeroVideoDimensions(video, 6000);
+      video.pause();
+      await seekTo(video, trimStartSec);
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     }
 
-    const captured = cap.call(video, 30);
-    const vTracks = captured.getVideoTracks();
-    if (vTracks.length === 0) {
-      throw new Error('No video track from captureStream.');
+    if (video.videoWidth < 2 || video.videoHeight < 2) {
+      throw new Error(TRANSCODE_UNSUPPORTED_HINT);
     }
-    const stream = new MediaStream(vTracks);
+
+    const {cw, ch} = canvasSizeForTranscode(video.videoWidth, video.videoHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = cw;
+    canvas.height = ch;
+    const ctx = canvas.getContext('2d', {alpha: false, desynchronized: true});
+    if (!ctx) {
+      throw new Error('Could not create canvas for video processing.');
+    }
+
+    const canvasCap = (
+      canvas as HTMLCanvasElement & {captureStream?: (fps?: number) => MediaStream}
+    ).captureStream;
+    if (typeof canvasCap !== 'function') {
+      throw new Error('Trimming requires canvas.captureStream (try another browser).');
+    }
+
+    const stream = canvasCap.call(canvas, 30);
+    const vTracks = stream.getVideoTracks();
+    if (vTracks.length === 0) {
+      throw new Error('No video track from canvas capture.');
+    }
 
     await video.play().catch(() => {
       throw new Error('Could not play video for trimming — try another clip or browser.');
     });
-    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 
     recorder = createMediaRecorder(stream, mime, videoBitsPerSecond);
 
@@ -222,8 +276,18 @@ async function recordSegmentToBlob(
           reject(new Error('Processing timed out'));
           return;
         }
+        try {
+          ctx.drawImage(video, 0, 0, cw, ch);
+        } catch {
+          /* ignore single-frame draw errors */
+        }
         if (video.currentTime >= end - 0.06 || video.ended) {
           video.pause();
+          try {
+            ctx.drawImage(video, 0, 0, cw, ch);
+          } catch {
+            /* ignore */
+          }
           try {
             if (recorder!.state !== 'inactive') recorder!.requestData();
             if (recorder!.state !== 'inactive') recorder!.stop();

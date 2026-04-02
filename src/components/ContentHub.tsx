@@ -179,7 +179,7 @@ export function ContentHub({
           />
           <div className="absolute inset-0 hero-gradient-nbbl p-4 sm:p-8 flex flex-col justify-end gap-2 sm:gap-4">
             <Badge className="w-fit bg-orange-600 text-[10px] font-black uppercase tracking-widest">
-              {feedScope === 'mine' ? 'Your library' : 'Community'}
+              {feedScope === 'mine' ? 'Your library' : 'Content hub'}
             </Badge>
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-black tracking-tight uppercase italic leading-none max-w-xl">
               {feedScope === 'mine' ? (
@@ -235,7 +235,7 @@ export function ContentHub({
               `}
             >
               <Users className="mr-1.5 h-3 w-3" />
-              Community
+              Content Hub
             </Button>
           </div>
           <p className="text-xs text-zinc-500 sm:text-right sm:max-w-md">

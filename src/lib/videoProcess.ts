@@ -7,15 +7,16 @@ export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 const MIN_VIDEO_BITRATE = 350_000;
 
 /**
- * Prefer VP8 before VP9 for canvas.captureStream output — some GPUs/browsers fail VP9 with “Encoding failed”.
- * Omit audio codec when possible (video-only stream) via plain video/webm fallback.
+ * Canvas `captureStream` is **video-only**. Prefer **video-only** WebM mimes first — `vp8,opus` / `vp9,opus`
+ * often makes Chrome’s muxer throw **“Encoding failed”** when there is no audio track.
  */
-function pickRecorderMimeType(): string {
+function pickRecorderMimeTypeForCanvasVideo(): string {
   const candidates = [
+    'video/webm;codecs=vp8',
+    'video/webm;codecs=vp9',
+    'video/webm',
     'video/webm;codecs=vp8,opus',
     'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8',
-    'video/webm',
   ];
   for (const t of candidates) {
     if (MediaRecorder.isTypeSupported(t)) return t;
@@ -145,16 +146,38 @@ function waitCanPlay(video: HTMLVideoElement): Promise<void> {
   });
 }
 
+const SEEK_TIMEOUT_MS = 8000;
+
+/** Resolves even if `seeked` never fires (unseekable media) after a timeout. */
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onSeeked = () => {
+    const target = Math.max(0, t);
+    if (Number.isFinite(video.currentTime) && Math.abs(video.currentTime - target) < 0.03) {
+      resolve();
+      return;
+    }
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       video.removeEventListener('seeked', onSeeked);
       resolve();
     };
+
+    const onSeeked = () => finish();
+
+    const timer = window.setTimeout(finish, SEEK_TIMEOUT_MS);
+
     video.addEventListener('seeked', onSeeked);
     try {
-      video.currentTime = Math.max(0, t);
+      video.currentTime = target;
+      if (Number.isFinite(video.currentTime) && Math.abs(video.currentTime - target) < 0.03) {
+        finish();
+      }
     } catch (e) {
+      clearTimeout(timer);
       video.removeEventListener('seeked', onSeeked);
       reject(e instanceof Error ? e : new Error('Seek failed'));
     }
@@ -172,7 +195,7 @@ async function recordSegmentToBlob(
   trimEndSec: number,
   videoBitsPerSecond: number,
 ): Promise<Blob> {
-  const mime = pickRecorderMimeType();
+  const mime = pickRecorderMimeTypeForCanvasVideo();
   if (!mime) {
     throw new Error('Video encoding is not supported in this browser.');
   }
@@ -231,6 +254,12 @@ async function recordSegmentToBlob(
     await video.play().catch(() => {
       throw new Error('Could not play video for trimming — try another clip or browser.');
     });
+
+    try {
+      ctx.drawImage(video, 0, 0, cw, ch);
+    } catch {
+      /* first frame may not be ready yet */
+    }
 
     recorder = createMediaRecorder(stream, mime, videoBitsPerSecond);
 

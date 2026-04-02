@@ -6,17 +6,42 @@ export const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 const MIN_VIDEO_BITRATE = 350_000;
 
+/** Prefer WebM for MediaRecorder + captureStream; avoid video/mp4 here (often errors when muxing capture output). */
 function pickRecorderMimeType(): string {
   const candidates = [
     'video/webm;codecs=vp9,opus',
     'video/webm;codecs=vp8,opus',
     'video/webm',
-    'video/mp4',
   ];
   for (const t of candidates) {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }
   return '';
+}
+
+function createMediaRecorder(
+  stream: MediaStream,
+  mime: string,
+  videoBitsPerSecond: number,
+): MediaRecorder {
+  if (mime && MediaRecorder.isTypeSupported(mime)) {
+    try {
+      return new MediaRecorder(stream, {mimeType: mime, videoBitsPerSecond});
+    } catch {
+      /* fall through */
+    }
+    try {
+      return new MediaRecorder(stream, {mimeType: mime});
+    } catch {
+      /* fall through */
+    }
+  }
+  try {
+    return new MediaRecorder(stream, {videoBitsPerSecond});
+  } catch {
+    /* fall through */
+  }
+  return new MediaRecorder(stream);
 }
 
 /** Duration in seconds, capped (same strategy as Recorder). */
@@ -107,7 +132,7 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
 
 /**
  * Re-encodes [trimStartSec, trimEndSec] into a new blob using MediaRecorder + captureStream.
- * Audio is included when present (video not muted during capture).
+ * Uses **video-only** capture for encoder stability (some sources’ audio tracks break VP8/VP9+Opus mux).
  */
 async function recordSegmentToBlob(
   input: Blob,
@@ -123,9 +148,12 @@ async function recordSegmentToBlob(
   const url = URL.createObjectURL(input);
   const video = document.createElement('video');
   video.playsInline = true;
-  video.muted = false;
-  video.volume = 0.001;
+  video.muted = true;
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
   video.src = url;
+
+  let recorder: MediaRecorder | null = null;
 
   try {
     await waitCanPlay(video);
@@ -137,26 +165,47 @@ async function recordSegmentToBlob(
     if (!cap) {
       throw new Error('Trimming requires captureStream (try another browser).');
     }
-    const stream = cap.call(video, 30);
-    const recOpts: MediaRecorderOptions = {videoBitsPerSecond};
-    if (mime) recOpts.mimeType = mime;
-    const recorder = MediaRecorder.isTypeSupported(mime)
-      ? new MediaRecorder(stream, recOpts)
-      : new MediaRecorder(stream, {videoBitsPerSecond});
+
+    const captured = cap.call(video, 30);
+    const vTracks = captured.getVideoTracks();
+    if (vTracks.length === 0) {
+      throw new Error('No video track from captureStream.');
+    }
+    const stream = new MediaStream(vTracks);
+
+    await video.play().catch(() => {
+      throw new Error('Could not play video for trimming — try another clip or browser.');
+    });
+    await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+    recorder = createMediaRecorder(stream, mime, videoBitsPerSecond);
 
     const chunks: Blob[] = [];
     const blobPromise = new Promise<Blob>((resolve, reject) => {
-      recorder.ondataavailable = e => {
+      recorder!.ondataavailable = e => {
         if (e.data.size > 0) chunks.push(e.data);
       };
-      recorder.onerror = () => reject(new Error('Recording failed'));
-      recorder.onstop = () => {
-        resolve(new Blob(chunks, {type: mime || 'video/webm'}));
+      recorder!.onerror = ev => {
+        const err = (ev as ErrorEvent & {error?: DOMException}).error;
+        reject(
+          new Error(
+            err?.message
+              ? `Recording failed: ${err.message}`
+              : 'Recording failed (encoder error — try a shorter trim or another browser).',
+          ),
+        );
+      };
+      recorder!.onstop = () => {
+        const blob = new Blob(chunks, {type: mime || 'video/webm'});
+        if (blob.size < 32) {
+          reject(new Error('Recording produced an empty file — try trimming again.'));
+          return;
+        }
+        resolve(blob);
       };
     });
 
-    recorder.start(250);
-    await video.play();
+    recorder.start(100);
 
     const end = trimEndSec;
     await new Promise<void>((resolve, reject) => {
@@ -166,7 +215,7 @@ async function recordSegmentToBlob(
         if (Date.now() > deadline) {
           video.pause();
           try {
-            if (recorder.state !== 'inactive') recorder.stop();
+            if (recorder!.state !== 'inactive') recorder!.stop();
           } catch {
             /* ignore */
           }
@@ -176,7 +225,8 @@ async function recordSegmentToBlob(
         if (video.currentTime >= end - 0.06 || video.ended) {
           video.pause();
           try {
-            if (recorder.state !== 'inactive') recorder.stop();
+            if (recorder!.state !== 'inactive') recorder!.requestData();
+            if (recorder!.state !== 'inactive') recorder!.stop();
           } catch {
             /* ignore */
           }
@@ -190,7 +240,7 @@ async function recordSegmentToBlob(
         'error',
         () => {
           try {
-            if (recorder.state !== 'inactive') recorder.stop();
+            if (recorder!.state !== 'inactive') recorder!.stop();
           } catch {
             /* ignore */
           }
@@ -202,6 +252,12 @@ async function recordSegmentToBlob(
 
     return await blobPromise;
   } finally {
+    try {
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+    } catch {
+      /* ignore */
+    }
+    video.pause();
     URL.revokeObjectURL(url);
     video.removeAttribute('src');
     video.load();

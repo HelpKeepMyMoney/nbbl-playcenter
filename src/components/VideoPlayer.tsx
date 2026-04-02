@@ -23,7 +23,8 @@ import {
   clipRequestsCommunityShare,
 } from '@/src/types';
 import {format} from 'date-fns';
-import {isClipLiked, removeClipLike, toggleClipLike} from '@/src/lib/clipLikes';
+import {subscribeClipLiked, toggleClipLikeFirestore} from '@/src/lib/clipLikes';
+import {getFirebaseAuth} from '@/src/lib/firebase';
 import {getBlob, ref} from 'firebase/storage';
 import {getFirebaseStorage} from '@/src/lib/firebase';
 
@@ -33,8 +34,6 @@ interface VideoPlayerProps {
   videos: VideoMetadata[];
   onSelectVideo: (video: VideoMetadata) => void;
   onClose: () => void;
-  /** Shown next to avatar (e.g. display name or email) */
-  userLabel: string;
   /** Current user owns the clip — can delete and toggle Community request */
   viewerIsOwner: boolean;
   /** Owner-only: set Firestore `communityVisibility` */
@@ -53,12 +52,11 @@ export function VideoPlayer({
   videos,
   onSelectVideo,
   onClose,
-  userLabel,
   viewerIsOwner,
   onSetOwnerCommunityVisibility,
   onDeleteClip,
 }: VideoPlayerProps) {
-  const [liked, setLiked] = useState(() => isClipLiked(video.id));
+  const [liked, setLiked] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -70,11 +68,19 @@ export function VideoPlayer({
   const [publicError, setPublicError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLiked(isClipLiked(video.id));
     setDeleteError(null);
     setShareOnLocal(clipRequestsCommunityShare(video.communityVisibility));
     setPublicError(null);
   }, [video.id, video.communityVisibility]);
+
+  useEffect(() => {
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid) {
+      setLiked(false);
+      return;
+    }
+    return subscribeClipLiked(video.id, uid, setLiked);
+  }, [video.id]);
 
   useEffect(() => {
     if (!shareHint) return;
@@ -96,8 +102,15 @@ export function VideoPlayer({
     onSelectVideo(videos[currentIndex + 1]!);
   }, [canGoOlder, currentIndex, onSelectVideo, videos]);
 
-  const handleLike = useCallback(() => {
-    setLiked(toggleClipLike(video.id));
+  const handleLike = useCallback(async () => {
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid) return;
+    try {
+      const next = await toggleClipLikeFirestore(video.id, uid);
+      setLiked(next);
+    } catch (e) {
+      setShareHint(e instanceof Error ? e.message : 'Could not update like');
+    }
   }, [video.id]);
 
   const handleShare = useCallback(async () => {
@@ -186,7 +199,6 @@ export function VideoPlayer({
     setDeleteError(null);
     try {
       await onDeleteClip(video);
-      removeClipLike(video.id);
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : 'Could not delete clip');
     } finally {
@@ -198,6 +210,14 @@ export function VideoPlayer({
     currentIndex >= 0 && videos.length > 0
       ? `${currentIndex + 1} of ${videos.length}`
       : '—';
+
+  const clipOwnerLabel = video.ownerDisplayName?.trim() || 'Player';
+
+  const likeCountLabel = (() => {
+    const n = video.likeCount;
+    const k = typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+    return k > 999 ? `${(k / 1000).toFixed(1)}k` : String(k);
+  })();
 
   return (
     <motion.div
@@ -233,6 +253,7 @@ export function VideoPlayer({
               src={video.videoUrl}
               controls
               autoPlay
+              muted
               playsInline
               className="max-h-[min(48dvh,56.25vw)] w-full object-contain sm:max-h-[min(60dvh,56.25vw)]"
             />
@@ -277,7 +298,7 @@ export function VideoPlayer({
               <div className="flex items-center gap-4">
                 <img src="/logo.png" alt="" className="h-10 w-10 object-contain shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-bold truncate">{userLabel}</p>
+                  <p className="text-sm font-bold truncate">{clipOwnerLabel}</p>
                   <p className="text-[11px] text-zinc-500">
                     {format(video.createdAt, 'MMMM d, yyyy · h:mm a')}
                   </p>
@@ -388,13 +409,19 @@ export function VideoPlayer({
                 <Button
                   type="button"
                   className={`w-full min-h-11 ${liked ? 'bg-zinc-800 hover:bg-zinc-700 text-orange-500 border border-orange-600' : 'bg-orange-600 hover:bg-orange-700'}`}
-                  onClick={handleLike}
+                  onClick={() => void handleLike()}
                   disabled={deleting}
                   aria-pressed={liked}
-                  aria-label={liked ? 'Unlike this clip' : 'Like this clip'}
+                  aria-label={
+                    liked
+                      ? `Unlike — ${likeCountLabel} likes`
+                      : `Like — ${likeCountLabel} likes`
+                  }
                 >
-                  <Heart className={`mr-2 h-4 w-4 ${liked ? 'fill-current' : ''}`} />
-                  {liked ? 'Liked' : 'Like'}
+                  <Heart className={`mr-2 h-4 w-4 shrink-0 ${liked ? 'fill-current' : ''}`} />
+                  <span className="tabular-nums">
+                    {liked ? 'Liked' : 'Like'} · {likeCountLabel}
+                  </span>
                 </Button>
                 <Button
                   type="button"
@@ -459,6 +486,10 @@ export function VideoPlayer({
                   <div>
                     <p className="text-xs text-zinc-500">Tags</p>
                     <p className="text-sm font-bold">{video.tags.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-500">Likes</p>
+                    <p className="text-sm font-bold tabular-nums">{likeCountLabel}</p>
                   </div>
                   <div>
                     <p className="text-xs text-zinc-500">In library</p>

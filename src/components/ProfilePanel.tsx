@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import type {User} from 'firebase/auth';
-import {X, Loader2, UserRound, Camera, Trash2, KeyRound, Mail} from 'lucide-react';
+import {X, Loader2, UserRound, Camera, Trash2, KeyRound, Mail, MapPin} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
@@ -15,7 +15,9 @@ import {
   userHasPasswordProvider,
 } from '@/src/lib/auth';
 import {syncOwnerDisplayNameOnMyClips} from '@/src/lib/clips';
-import {syncCurrentUserProfileDoc} from '@/src/lib/userProfile';
+import {doc, getDoc} from 'firebase/firestore';
+import {getFirebaseDb} from '@/src/lib/firebase';
+import {syncCurrentUserProfileDoc, updateUserProfileCity} from '@/src/lib/userProfile';
 
 const inputClass =
   'w-full min-h-11 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-600/50';
@@ -28,6 +30,7 @@ interface ProfilePanelProps {
 export function ProfilePanel({user, onClose}: ProfilePanelProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [displayName, setDisplayName] = useState('');
+  const [city, setCity] = useState('');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -49,6 +52,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
 
   useEffect(() => {
     setDisplayName(user.displayName ?? '');
+    setCity('');
     setProfileError(null);
     setProfileSaved(false);
     setPasswordError(null);
@@ -57,6 +61,19 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
     setNewPassword('');
     setConfirmPassword('');
     setResetHint(null);
+  }, [user.uid]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const snap = await getDoc(doc(getFirebaseDb(), 'users', user.uid));
+      if (cancelled) return;
+      const c = snap.data()?.city;
+      setCity(typeof c === 'string' ? c : '');
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user.uid]);
 
   useEffect(() => {
@@ -118,12 +135,13 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
     }
   }, [user]);
 
-  const onSaveDisplayName = useCallback(async () => {
+  const onSaveProfile = useCallback(async () => {
     setProfileError(null);
     setSaveNameBusy(true);
     try {
       await saveUserDisplayName(user, displayName);
       await syncCurrentUserProfileDoc();
+      await updateUserProfileCity(user.uid, city);
       const label = displayName.trim() || user.email || 'Player';
       await syncOwnerDisplayNameOnMyClips(user.uid, label);
       setProfileSaved(true);
@@ -132,7 +150,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
     } finally {
       setSaveNameBusy(false);
     }
-  }, [user, displayName]);
+  }, [user, displayName, city]);
 
   const onChangePassword = useCallback(async () => {
     setPasswordError(null);
@@ -222,7 +240,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
           )}
           {profileSaved && (
             <div className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">
-              Display name saved.
+              Profile saved.
             </div>
           )}
 
@@ -299,14 +317,33 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
               onChange={e => setDisplayName(e.target.value)}
               placeholder="How you appear in the app"
             />
+            <div className="space-y-2 mt-4">
+              <label htmlFor="profile-city" className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                City
+              </label>
+              <input
+                id="profile-city"
+                type="text"
+                autoComplete="address-level2"
+                className={inputClass}
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                placeholder="e.g. Atlanta"
+                maxLength={120}
+              />
+            </div>
             <Button
               type="button"
-              className="mt-2 bg-orange-600 hover:bg-orange-700 min-h-11"
+              className="mt-3 bg-orange-600 hover:bg-orange-700 min-h-11 inline-flex items-center justify-center gap-2"
               disabled={saveNameBusy}
-              onClick={() => void onSaveDisplayName()}
+              onClick={() => void onSaveProfile()}
             >
-              {saveNameBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Save name
+              {saveNameBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MapPin className="h-4 w-4" />
+              )}
+              Save profile
             </Button>
           </div>
 
@@ -320,7 +357,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
               Email sign-in address cannot be changed here. Use your provider’s account settings if needed.
             </p>
             <p className="text-xs text-zinc-600">
-              A read-only copy of your name, email, and photo is kept in Firestore under{' '}
+              A read-only copy of your name, email, city, and photo is kept in Firestore under{' '}
               <span className="font-mono text-zinc-500">users</span> / your account id (for admins and the console).
             </p>
           </div>

@@ -29,6 +29,8 @@ export interface VideoMetadata {
   moderationRejectionReason: string;
   moderatedAt: Date | null;
   moderatedBy: string | null;
+  /** Denormalized count of Firestore `clips/{id}/likes/{uid}` docs */
+  likeCount: number;
 }
 
 export function clipRequestsCommunityShare(v: CommunityVisibility): boolean {

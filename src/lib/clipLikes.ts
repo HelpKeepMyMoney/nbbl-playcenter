@@ -1,35 +1,46 @@
-const STORAGE_KEY = 'nbbl-playcenter-clip-likes';
+import {
+  doc,
+  onSnapshot,
+  runTransaction,
+  serverTimestamp,
+  type Unsubscribe,
+} from 'firebase/firestore';
+import {getFirebaseDb} from './firebase';
 
-function readIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw) as unknown;
-    return new Set(Array.isArray(arr) ? (arr as string[]) : []);
-  } catch {
-    return new Set();
-  }
+export function subscribeClipLiked(
+  clipId: string,
+  userId: string,
+  onValue: (liked: boolean) => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(getFirebaseDb(), 'clips', clipId, 'likes', userId),
+    snap => onValue(snap.exists()),
+    () => onValue(false),
+  );
 }
 
-export function isClipLiked(id: string): boolean {
-  return readIds().has(id);
-}
+/** Toggle like; updates `clips/{clipId}/likes/{userId}` and clip `likeCount`. */
+export async function toggleClipLikeFirestore(clipId: string, userId: string): Promise<boolean> {
+  const db = getFirebaseDb();
+  const clipRef = doc(db, 'clips', clipId);
+  const likeRef = doc(db, 'clips', clipId, 'likes', userId);
 
-/** Returns new liked state after toggle. */
-export function toggleClipLike(id: string): boolean {
-  const set = readIds();
-  if (set.has(id)) {
-    set.delete(id);
-  } else {
-    set.add(id);
-  }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
-  return set.has(id);
-}
+  return runTransaction(db, async tx => {
+    const [likeSnap, clipSnap] = await Promise.all([tx.get(likeRef), tx.get(clipRef)]);
+    if (!clipSnap.exists()) {
+      throw new Error('Clip not found');
+    }
+    const prevRaw = clipSnap.data()?.likeCount;
+    const prev =
+      typeof prevRaw === 'number' && Number.isFinite(prevRaw) ? Math.max(0, Math.floor(prevRaw)) : 0;
 
-export function removeClipLike(id: string): void {
-  const set = readIds();
-  if (!set.has(id)) return;
-  set.delete(id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+    if (likeSnap.exists()) {
+      tx.delete(likeRef);
+      tx.update(clipRef, {likeCount: Math.max(0, prev - 1)});
+      return false;
+    }
+    tx.set(likeRef, {createdAt: serverTimestamp()});
+    tx.update(clipRef, {likeCount: prev + 1});
+    return true;
+  });
 }

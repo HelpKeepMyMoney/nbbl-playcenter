@@ -254,6 +254,11 @@ export function AdminPanel({moderatorUid, onClose}: AdminPanelProps) {
                           {profilesByUid[v.ownerUserId]!.email}
                         </span>
                       ) : null}
+                      {profilesByUid[v.ownerUserId]?.city?.trim() ? (
+                        <span className="text-zinc-500 text-[11px] truncate">
+                          {profilesByUid[v.ownerUserId]!.city.trim()}
+                        </span>
+                      ) : null}
                     </div>
                     <p className="text-xs text-zinc-500">
                       {v.category} · {v.duration}

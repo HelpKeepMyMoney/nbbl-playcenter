@@ -52,6 +52,7 @@ do {
     };
     if (!snap.exists) {
       payload.createdAt = FieldValue.serverTimestamp();
+      payload.city = '';
     }
     batch.set(ref, payload, {merge: true});
   }

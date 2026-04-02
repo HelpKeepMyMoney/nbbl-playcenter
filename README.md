@@ -21,17 +21,18 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 - **Sign-in:** Google (popup) or **email/password** with **Sign in** / **Sign up** on the same screen; clips and files scoped to `request.auth.uid`
 - **Branding:** NBBL mark from `public/logo.png` on the sign-in screen, hub header, and video player details (replace the file to update artwork everywhere it is referenced)
-- `MediaRecorder` with **60s** hard limit, on-screen countdown, camera cleanup on close; on phones, **switch front/rear camera** before recording. **Uploaded `durationSec`** uses **wall-clock recording time** on stop (WebM metadata is often wrong/`Infinity` in browsers)
-- Client-generated **JPEG thumbnails** uploaded with each video
-- Hub: **My clips** vs **Community** (approved public clips), category filters, search (title + tags), loading and error states
-- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation, **stats**, **Like** / **Share** / **Download**, **Delete clip** (owner only). Community clips hide delete for non-owners. Modal tuned for small viewports and safe-area
+- **Recorder:** **Camera** (`MediaRecorder`, **60s** hard limit, countdown, front/rear switch) **or** **From camera roll** (`<input type="file" accept="video/*">`). After capture or pick, **trim** the clip with **start/end sliders** before save (still capped at 60s of output).
+- **Upload processing (`src/lib/videoProcess.ts`):** Clips are re-encoded in the browser (video element + `captureStream` + `MediaRecorder`) so the uploaded file stays **≤ 20 MB** (bitrate is stepped down until the cap is met). A **fast path** skips re-encode for short **full-length** camera recordings that are already under the cap. **Uploaded `durationSec`** reflects the **trimmed** segment; camera wall-clock time is still used when metadata is unreliable. Re-encoding support **varies by browser** (test camera-roll uploads on target devices).
+- Client-generated **JPEG thumbnails** uploaded with each video; Storage filenames use **`video.webm`** or **`video.mp4`** depending on the output blob type (`src/lib/clips.ts`).
+- **Hub layout:** **Hero** first, then **My clips / Community**, then a **dismissible orange banner** when a **your** clip’s **community status** changes (e.g. submitted for review, approved, denied with reason, withdrawn). Banner auto-dismisses after ~12s. Below that: errors, **category filters + search**, then the grid.
+- **Clip viewer (`VideoPlayer`):** **Newer / Older** navigation, **stats**, **Like** / **Share** / **Download**, **Delete clip** (owner only). Community clips hide delete for non-owners. **Playback is muted by default** (user can unmute with the native controls). Modal tuned for small viewports and safe-area
 - **Hero banner** on the hub uses the same Unsplash basketball photo and gradient overlay as the NBBL marketing site (`.hero-gradient-nbbl` in `src/index.css`)
 - **Mobile-first:** compact hero, fixed bottom **Hub | Record** bar, safe-area padding, large touch targets
 
 ### Profile (`ProfilePanel`)
 
 - Open from the **avatar** in the hub header
-- **Display name** (Firebase Auth `updateProfile`) + **Save name**; syncs **`ownerDisplayName`** on your clips for admin display
+- **Display name** (Firebase Auth `updateProfile`) + **City** (Firestore `users/{uid}.city`) + **Save**; name syncs **`ownerDisplayName`** on your clips for admin display
 - **Profile photo:** upload to Storage `profiles/{uid}/…` or remove; updates Auth `photoURL`
 - **Email/password accounts:** change password (re-auth) or send **password reset** email
 - **Google-only:** password section hidden; name/photo still editable (Google-sourced until changed in app)
@@ -48,15 +49,16 @@ Mobile-first MVP for the [No Backboard Basketball League](https://nbbl.vercel.ap
 
 ### Data model highlights
 
-- **`clips`:** `userId`, `communityVisibility` (`private` \| `pending` \| `published` \| `rejected`), `moderationRejectionReason`, `moderatedAt`, `moderatedBy`, `ownerDisplayName`, media paths, metadata
-- **`users`:** mirror of Auth profile + `createdAt` / `updatedAt` (see below)
+- **`clips`:** `userId`, `communityVisibility` (`private` \| `pending` \| `published` \| `rejected`), `moderationRejectionReason`, `moderatedAt`, `moderatedBy`, `ownerDisplayName`, **`likeCount`** (denormalized), media paths, metadata
+- **`clips/{clipId}/likes/{userId}`:** per-user like documents (used by **Like** in the player)
+- **`users`:** mirror of Auth profile + **`city`**, `createdAt` / `updatedAt` (see below)
 - **`admins`:** presence of doc `admins/{uid}` grants admin UI + Firestore rule checks; Storage rules also honor optional Auth claim **`admin`** (see `scripts/set-admin-claim.mjs`)
 
 ## User profiles in Firestore
 
 The app writes **`users/{uid}`** (same id as Firebase Auth) with:
 
-- `displayName`, `email`, `photoURL` (nullable), `createdAt`, `updatedAt`
+- `displayName`, `email`, `photoURL` (nullable), **`city`** (optional string), `createdAt`, `updatedAt`
 
 **Important:** A row appears when that account **signs in to the app** (or after you run the backfill script). Having two users under **Authentication** does not by itself create two `users` documents until each has signed in once or you backfill.
 
@@ -85,11 +87,11 @@ See `scripts/set-admin-claim.mjs` for details.
 
 | Path | Purpose |
 | ---- | ------- |
-| `src/App.tsx` | Auth, `users/{uid}` sync on auth state, my clips + Community subscriptions, recorder / profile / admin / player modals |
-| `src/components/ContentHub.tsx` | My clips vs Community, filters, header (Record, Admin if applicable, avatar, sign out), bottom nav |
-| `src/components/Recorder.tsx` | Camera, record, **Request Community** checkbox on save |
+| `src/App.tsx` | Auth, `users/{uid}` sync, my clips + Community subscriptions, **hub status banner** (visibility transitions), recorder / profile / admin / player modals |
+| `src/components/ContentHub.tsx` | Hero, **My clips / Community** (below hero), status **banner**, filters + search, header + bottom nav |
+| `src/components/Recorder.tsx` | Camera **or** file pick, **trim** sliders, transcode path, **Request Community** on save |
 | `src/components/SignInScreen.tsx` | Email/password + Google; **awaits** `users/{uid}` upsert after successful sign-in/sign-up |
-| `src/components/VideoPlayer.tsx` | Playback, owner **Community** checkbox + status banners, delete (owner), share/download |
+| `src/components/VideoPlayer.tsx` | **Muted** autoplay + controls, owner **Community** checkbox + status banners, **Firestore likes**, delete (owner), share/download |
 | `src/components/VideoCard.tsx` | Thumbnail grid; **Live / Review / Denied** badges on My clips |
 | `src/components/ProfilePanel.tsx` | Profile editing, password / reset, Firestore user doc + clip `ownerDisplayName` sync |
 | `src/components/AdminPanel.tsx` | Moderation queue, approve/deny, owner profile fetch |
@@ -98,7 +100,8 @@ See `scripts/set-admin-claim.mjs` for details.
 | `src/lib/clips.ts` | Subscriptions, upload, delete, **setOwnerClipCommunityVisibility**, **moderateClipByAdmin**; **subscribeToClipsForModeration** refreshes **`getIdToken(true)`** before **`getDownloadURL`** so moderators’ JWTs match Storage rules |
 | `src/lib/userProfile.ts` | **`upsertUserProfileFromAuth`**, **`fetchUserProfilesByIds`** (admin) |
 | `src/lib/admin.ts` | **`subscribeIsUserAdmin`** (`admins/{uid}` doc exists) |
-| `src/lib/clipLikes.ts` | Per-clip likes in `localStorage` |
+| `src/lib/clipLikes.ts` | **`subscribeClipLiked`**, **`toggleClipLikeFirestore`** — `clips/{id}/likes/{uid}` + `likeCount` |
+| `src/lib/videoProcess.ts` | **≤20 MB** transcode, trim window, duration probe, `canSkipCameraTranscode` |
 | `src/lib/thumbnail.ts` | Canvas thumbnail from recorded blob |
 | `src/types.ts` | `VideoMetadata`, `CommunityVisibility`, `FeedScope`, helpers |
 | `firestore.rules` | `users`, `admins`, `clips` (owner, community read for published, admin reads/updates) |

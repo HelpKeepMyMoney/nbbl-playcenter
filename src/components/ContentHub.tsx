@@ -34,6 +34,9 @@ interface ContentHubProps {
   onOpenProfile: () => void;
   onOpenAdmin: () => void;
   onSignOut: () => void;
+  /** Clip moderation / visibility update (owner’s library) */
+  hubNotice?: string | null;
+  onDismissHubNotice?: () => void;
 }
 
 export function ContentHub({
@@ -49,6 +52,8 @@ export function ContentHub({
   onOpenProfile,
   onOpenAdmin,
   onSignOut,
+  hubNotice,
+  onDismissHubNotice,
 }: ContentHubProps) {
   const reduceMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState<VideoCategory | 'all'>('all');
@@ -155,42 +160,6 @@ export function ContentHub({
       </header>
 
       <main className="container mx-auto px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-1 p-1 bg-zinc-900 rounded-full border border-zinc-800 w-full sm:w-auto">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onFeedScopeChange('mine')}
-              className={`
-                flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
-                ${feedScope === 'mine' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
-              `}
-            >
-              <Library className="mr-1.5 h-3 w-3" />
-              My clips
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onFeedScopeChange('community')}
-              className={`
-                flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
-                ${feedScope === 'community' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
-              `}
-            >
-              <Users className="mr-1.5 h-3 w-3" />
-              Community
-            </Button>
-          </div>
-          <p className="text-xs text-zinc-500 sm:text-right sm:max-w-md">
-            {feedScope === 'mine'
-              ? 'Community posts need moderator approval before they go live.'
-              : 'Approved clips from all signed-in players — newest first.'}
-          </p>
-        </div>
-
         <section className="relative h-[200px] sm:h-[300px] md:h-[380px] rounded-2xl md:rounded-3xl overflow-hidden border border-zinc-800 group">
           <img
             src="https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&q=80&w=2000"
@@ -229,6 +198,61 @@ export function ContentHub({
             </div>
           </div>
         </section>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-1 p-1 bg-zinc-900 rounded-full border border-zinc-800 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onFeedScopeChange('mine')}
+              className={`
+                flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
+                ${feedScope === 'mine' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+              `}
+            >
+              <Library className="mr-1.5 h-3 w-3" />
+              My clips
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onFeedScopeChange('community')}
+              className={`
+                flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
+                ${feedScope === 'community' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+              `}
+            >
+              <Users className="mr-1.5 h-3 w-3" />
+              Community
+            </Button>
+          </div>
+          <p className="text-xs text-zinc-500 sm:text-right sm:max-w-md">
+            {feedScope === 'mine'
+              ? 'Community posts need moderator approval before they go live.'
+              : 'Approved clips from all signed-in players — newest first.'}
+          </p>
+        </div>
+
+        {hubNotice ? (
+          <div
+            role="status"
+            className="flex items-start justify-between gap-3 rounded-xl border border-orange-800/50 bg-orange-950/40 px-4 py-3 text-sm text-orange-100"
+          >
+            <p className="min-w-0 flex-1 leading-snug">{hubNotice}</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="shrink-0 min-h-9 text-orange-200 hover:text-white hover:bg-orange-900/50"
+              onClick={() => onDismissHubNotice?.()}
+              aria-label="Dismiss notification"
+            >
+              ×
+            </Button>
+          </div>
+        ) : null}
 
         {clipsError && (
           <div className="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
@@ -288,6 +312,7 @@ export function ContentHub({
                   video={video}
                   onClick={onVideoClick}
                   showModerationState={feedScope === 'mine'}
+                  viewerUid={user.uid}
                 />
               </motion.div>
             ))}

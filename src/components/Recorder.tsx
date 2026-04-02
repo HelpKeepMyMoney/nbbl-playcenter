@@ -1,5 +1,5 @@
 import React, {useState, useRef, useEffect, useCallback} from 'react';
-import {Camera, StopCircle, Save, X, Trash2, SwitchCamera} from 'lucide-react';
+import {Camera, StopCircle, Save, X, Trash2, SwitchCamera, Upload, Scissors} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Card, CardContent, CardHeader, CardTitle, CardDescription} from '@/components/ui/card';
 import {Badge} from '@/components/ui/badge';
@@ -8,8 +8,15 @@ import {VideoCategory} from '@/src/types';
 import type {ClipUploadPayload} from '@/src/lib/clips';
 import {formatDurationSec} from '@/src/lib/duration';
 import {captureThumbnailFromVideoBlob} from '@/src/lib/thumbnail';
+import {
+  MAX_CLIP_DURATION_SEC,
+  MAX_VIDEO_BYTES,
+  prepareClipForUpload,
+  readDurationSecFromVideoBlob,
+  canSkipCameraTranscode,
+} from '@/src/lib/videoProcess';
 
-const MAX_RECORD_MS = 60_000;
+const MAX_RECORD_MS = MAX_CLIP_DURATION_SEC * 1000;
 
 function pickRecorderMimeType(): string {
   const candidates = [
@@ -23,6 +30,8 @@ function pickRecorderMimeType(): string {
   return '';
 }
 
+type ClipSource = 'camera' | 'library';
+
 interface RecorderProps {
   onSave: (payload: ClipUploadPayload) => Promise<void>;
   onClose: () => void;
@@ -31,6 +40,7 @@ interface RecorderProps {
 export function Recorder({onSave, onClose}: RecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [clipSource, setClipSource] = useState<ClipSource>('camera');
   const [category, setCategory] = useState<VideoCategory>('run');
   const [title, setTitle] = useState('');
   const [remainingMs, setRemainingMs] = useState(MAX_RECORD_MS);
@@ -38,16 +48,19 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [makePublic, setMakePublic] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
-  /** Rear camera on phones (`environment`); `user` is selfie / front. */
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [fullDurationSec, setFullDurationSec] = useState<number | null>(null);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(MAX_CLIP_DURATION_SEC);
+  const [durationLoading, setDurationLoading] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const recordStartRef = useRef<number>(0);
-  /** Wall-clock length of the last finished recording (WebM `duration` is often Infinity until fully parsed). */
   const recordedDurationSecRef = useRef<number | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const previewObjectUrlRef = useRef<string | null>(null);
@@ -71,6 +84,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   );
 
   useEffect(() => {
+    if (recordedBlob) return;
     let cancelled = false;
     async function setupCamera() {
       try {
@@ -92,7 +106,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
         setCameraReady(false);
       }
     }
-    setupCamera();
+    void setupCamera();
     return () => {
       cancelled = true;
       setCameraReady(false);
@@ -104,7 +118,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
       }
       revokePreview();
     };
-  }, [facingMode, revokePreview]);
+  }, [facingMode, revokePreview, recordedBlob]);
 
   useEffect(() => {
     if (recordedBlob) {
@@ -114,6 +128,44 @@ export function Recorder({onSave, onClose}: RecorderProps) {
       if (previewVideoRef.current) previewVideoRef.current.removeAttribute('src');
     }
   }, [recordedBlob, setPreviewFromBlob, revokePreview]);
+
+  useEffect(() => {
+    if (!recordedBlob) {
+      setFullDurationSec(null);
+      setTrimStart(0);
+      setTrimEnd(MAX_CLIP_DURATION_SEC);
+      setDurationLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDurationLoading(true);
+    void (async () => {
+      try {
+        let dur: number;
+        if (clipSource === 'camera' && recordedDurationSecRef.current != null) {
+          dur = recordedDurationSecRef.current;
+        } else {
+          dur = await readDurationSecFromVideoBlob(recordedBlob, 7200);
+        }
+        if (cancelled) return;
+        const cap = Math.min(Math.max(dur, 0.25), MAX_CLIP_DURATION_SEC);
+        setFullDurationSec(dur);
+        setTrimStart(0);
+        setTrimEnd(Math.min(dur, MAX_CLIP_DURATION_SEC));
+      } catch {
+        if (!cancelled) {
+          setFullDurationSec(MAX_CLIP_DURATION_SEC);
+          setTrimStart(0);
+          setTrimEnd(MAX_CLIP_DURATION_SEC);
+        }
+      } finally {
+        if (!cancelled) setDurationLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [recordedBlob, clipSource]);
 
   const clearRecordTimer = () => {
     if (tickRef.current) {
@@ -154,6 +206,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
         Math.max(0, elapsedMs / 1000),
         MAX_RECORD_MS / 1000,
       );
+      setClipSource('camera');
       setRecordedBlob(blob);
     };
 
@@ -179,74 +232,60 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     setRecordedBlob(null);
     setUploadError(null);
     setMakePublic(false);
+    setClipSource('camera');
+    setFullDurationSec(null);
   };
 
-  /** Fallback when wall-clock ref missing — WebM from MediaRecorder often reports Infinity/NaN on first metadata. */
-  const readDurationSecFromBlob = (blob: Blob): Promise<number> => {
-    return new Promise(resolve => {
-      const url = URL.createObjectURL(blob);
-      const v = document.createElement('video');
-      v.preload = 'auto';
-      v.muted = true;
-      v.playsInline = true;
-      v.src = url;
-
-      let settled = false;
-      const cap = MAX_RECORD_MS / 1000;
-      const finish = (sec: number) => {
-        if (settled) return;
-        settled = true;
-        URL.revokeObjectURL(url);
-        resolve(Math.min(Math.max(0, sec), cap));
-      };
-
-      const tryRead = (): number | null => {
-        try {
-          if (v.seekable && v.seekable.length > 0) {
-            const end = v.seekable.end(v.seekable.length - 1);
-            if (Number.isFinite(end) && end > 0) return end;
-          }
-        } catch {
-          /* ignore */
-        }
-        const d = v.duration;
-        if (Number.isFinite(d) && d > 0 && d < cap + 1) return d;
-        return null;
-      };
-
-      const onProbe = () => {
-        const n = tryRead();
-        if (n != null) finish(n);
-      };
-
-      v.addEventListener('loadedmetadata', onProbe);
-      v.addEventListener('durationchange', onProbe);
-      v.addEventListener('loadeddata', onProbe);
-      v.addEventListener('error', () => finish(0));
-
-      window.setTimeout(() => {
-        const n = tryRead();
-        finish(n ?? 0);
-      }, 2500);
-    });
-  };
+  const onPickLibraryVideo = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('video/')) {
+      setUploadError('Please choose a video file.');
+      return;
+    }
+    setUploadError(null);
+    setClipSource('library');
+    setRecordedBlob(file);
+  }, []);
 
   const handleSave = async () => {
     if (!recordedBlob || uploading) return;
     setUploadError(null);
     setUploading(true);
     try {
-      const wallSec = recordedDurationSecRef.current;
-      const durationSec =
-        wallSec != null && wallSec >= 0
-          ? wallSec
-          : await readDurationSecFromBlob(recordedBlob);
-      const thumbnailBlob = await captureThumbnailFromVideoBlob(recordedBlob);
-      const trimmedDuration = Math.min(durationSec, MAX_RECORD_MS / 1000);
+      const fullDur =
+        fullDurationSec ??
+        (await readDurationSecFromVideoBlob(recordedBlob, 7200));
+      const t0 = Math.max(0, Math.min(trimStart, fullDur - 0.25));
+      const t1 = Math.max(t0 + 0.25, Math.min(trimEnd, fullDur));
+
+      let videoBlob: Blob;
+      let durationSec: number;
+
+      const skipTranscode =
+        clipSource === 'camera' &&
+        canSkipCameraTranscode(recordedBlob, t0, t1, fullDur);
+
+      if (skipTranscode) {
+        videoBlob = recordedBlob;
+        durationSec = Math.min(t1 - t0, MAX_CLIP_DURATION_SEC);
+      } else {
+        setUploadError(null);
+        const prepared = await prepareClipForUpload(recordedBlob, t0, t1);
+        videoBlob = prepared.blob;
+        durationSec = prepared.durationSec;
+      }
+
+      if (videoBlob.size > MAX_VIDEO_BYTES) {
+        throw new Error('Video is still over 20 MB. Trim a shorter segment.');
+      }
+
+      const thumbnailBlob = await captureThumbnailFromVideoBlob(videoBlob);
       await onSave({
-        videoBlob: recordedBlob,
+        videoBlob,
         thumbnailBlob,
-        durationSec: trimmedDuration,
+        durationSec,
         title: title.trim() || `NBBL ${category.toUpperCase()} — ${new Date().toLocaleDateString()}`,
         category,
         tags: ['NBBL', category],
@@ -267,6 +306,10 @@ export function Recorder({onSave, onClose}: RecorderProps) {
 
   const remainingLabel = formatDurationSec(Math.ceil(remainingMs / 1000));
 
+  const trimMaxEnd =
+    fullDurationSec != null ? Math.min(fullDurationSec, MAX_CLIP_DURATION_SEC) : MAX_CLIP_DURATION_SEC;
+  const trimUiReady = fullDurationSec != null && !durationLoading;
+
   return (
     <motion.div
       initial={{opacity: 0, scale: 0.95}}
@@ -274,14 +317,21 @@ export function Recorder({onSave, onClose}: RecorderProps) {
       exit={{opacity: 0, scale: 0.95}}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 p-0 sm:p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-4 backdrop-blur-sm"
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="video/*"
+        className="sr-only"
+        onChange={onPickLibraryVideo}
+      />
       <Card className="w-full max-w-2xl max-h-[100dvh] sm:max-h-[95dvh] overflow-y-auto rounded-t-2xl sm:rounded-xl bg-zinc-900 border-zinc-800 text-white border-x-0 sm:border-x border-b-0 sm:border-b">
         <CardHeader className="flex flex-row items-center justify-between border-b border-zinc-800 shrink-0">
           <div>
             <CardTitle className="font-display text-lg sm:text-xl tracking-tight uppercase">
-              Record clip
+              Record or upload
             </CardTitle>
             <CardDescription className="text-zinc-400 text-xs sm:text-sm">
-              Up to 60s — runs, highlights, or training
+              Up to 60s — trim, then we compress to under 20 MB
             </CardDescription>
           </div>
           <Button
@@ -363,25 +413,92 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                   ))}
                 </div>
 
-                <Button
-                  size="lg"
-                  className={`min-h-[3.5rem] min-w-[3.5rem] h-14 w-14 rounded-full ${isRecording ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-red-600 hover:bg-red-700'}`}
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={!cameraReady}
-                  aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-                >
-                  {isRecording ? <StopCircle className="h-8 w-8" /> : <Camera className="h-8 w-8" />}
-                </Button>
+                <div className="flex flex-wrap justify-center gap-3 w-full">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="min-h-12 border-zinc-600 bg-zinc-950 hover:bg-zinc-800"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isRecording}
+                  >
+                    <Upload className="mr-2 h-5 w-5" />
+                    From camera roll
+                  </Button>
+                  <Button
+                    size="lg"
+                    className={`min-h-[3.5rem] min-w-[3.5rem] h-14 w-14 rounded-full ${isRecording ? 'bg-zinc-800 hover:bg-zinc-700' : 'bg-red-600 hover:bg-red-700'}`}
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={!cameraReady}
+                    aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                  >
+                    {isRecording ? <StopCircle className="h-8 w-8" /> : <Camera className="h-8 w-8" />}
+                  </Button>
+                </div>
                 <p className="text-sm text-zinc-500 text-center px-4">
                   {isRecording
                     ? 'Tap to stop — max 60 seconds'
                     : cameraReady
-                      ? 'Tap to record (60s max)'
+                      ? 'Record in app or upload a video to trim'
                       : 'Allow camera access to record'}
                 </p>
               </div>
             ) : (
               <div className="space-y-4">
+                <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                    <Scissors className="h-3.5 w-3.5" />
+                    Trim clip
+                  </div>
+                  {durationLoading ? (
+                    <p className="text-sm text-zinc-500">Reading duration…</p>
+                  ) : trimUiReady ? (
+                    <>
+                      <p className="text-[11px] text-zinc-500">
+                        Source length {formatDurationSec(Math.floor(fullDurationSec))} — exported segment
+                        max {MAX_CLIP_DURATION_SEC}s, file cap 20 MB.
+                      </p>
+                      <div className="space-y-2">
+                        <label className="text-xs text-zinc-400 flex justify-between">
+                          <span>Start</span>
+                          <span className="font-mono text-zinc-300">{formatDurationSec(Math.floor(trimStart))}</span>
+                        </label>
+                        <input
+                          type="range"
+                          className="w-full accent-orange-600"
+                          min={0}
+                          max={Math.max(0, trimMaxEnd - 0.25)}
+                          step={0.1}
+                          value={Math.min(trimStart, trimMaxEnd - 0.25)}
+                          onChange={e => {
+                            const v = Number(e.target.value);
+                            setTrimStart(v);
+                            setTrimEnd(te => Math.max(v + 0.25, Math.min(te, trimMaxEnd)));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs text-zinc-400 flex justify-between">
+                          <span>End</span>
+                          <span className="font-mono text-zinc-300">{formatDurationSec(Math.floor(trimEnd))}</span>
+                        </label>
+                        <input
+                          type="range"
+                          className="w-full accent-orange-600"
+                          min={Math.min(trimMaxEnd, trimStart + 0.25)}
+                          max={trimMaxEnd}
+                          step={0.1}
+                          value={Math.max(trimStart + 0.25, Math.min(trimEnd, trimMaxEnd))}
+                          onChange={e => {
+                            const v = Number(e.target.value);
+                            setTrimEnd(v);
+                            setTrimStart(ts => Math.min(ts, v - 0.25));
+                          }}
+                        />
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-zinc-400">Title</label>
                   <input
@@ -412,10 +529,10 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                   <Button
                     className="flex-1 min-h-12 bg-orange-600 hover:bg-orange-700"
                     onClick={() => void handleSave()}
-                    disabled={uploading}
+                    disabled={uploading || durationLoading || !trimUiReady}
                   >
                     <Save className="mr-2 h-4 w-4" />
-                    {uploading ? 'Uploading…' : 'Save to hub'}
+                    {uploading ? 'Processing…' : 'Save to hub'}
                   </Button>
                   <Button
                     variant="outline"

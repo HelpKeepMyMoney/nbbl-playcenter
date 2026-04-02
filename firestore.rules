@@ -18,7 +18,15 @@ service cloud.firestore {
 
     function clipImmutableKeys() {
       return ['userId', 'title', 'category', 'videoStoragePath',
-        'thumbnailStoragePath', 'durationSec', 'createdAt', 'tags', 'ownerDisplayName'];
+        'thumbnailStoragePath', 'durationSec', 'createdAt', 'tags', 'ownerDisplayName', 'likeCount'];
+    }
+
+    function canReadClipData(data) {
+      return request.auth != null && (
+        request.auth.uid == data.userId
+        || communityReadable(data)
+        || isAdmin(request.auth.uid)
+      );
     }
 
     function ownerMayNotChangeModeration(aff) {
@@ -48,6 +56,8 @@ service cloud.firestore {
         && (request.resource.data.photoURL == null
           || (request.resource.data.photoURL is string
             && request.resource.data.photoURL.size() < 2048))
+        && request.resource.data.city is string
+        && request.resource.data.city.size() < 120
         && request.resource.data.updatedAt is timestamp;
     }
 
@@ -59,7 +69,7 @@ service cloud.firestore {
         && userProfileFieldsValid()
         && request.resource.data.createdAt is timestamp
         && request.resource.data.keys().hasAll([
-          'displayName', 'email', 'photoURL', 'updatedAt', 'createdAt'
+          'displayName', 'email', 'photoURL', 'city', 'updatedAt', 'createdAt'
         ]);
 
       allow update: if request.auth != null
@@ -83,13 +93,29 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll([
           'userId', 'title', 'category', 'videoStoragePath',
           'thumbnailStoragePath', 'durationSec', 'createdAt', 'tags',
-          'communityVisibility', 'moderationRejectionReason', 'ownerDisplayName'
+          'communityVisibility', 'moderationRejectionReason', 'ownerDisplayName', 'likeCount'
         ])
         && request.resource.data.communityVisibility in ['private', 'pending']
         && request.resource.data.moderationRejectionReason is string
         && request.resource.data.moderationRejectionReason.size() < 4000
         && request.resource.data.ownerDisplayName is string
-        && request.resource.data.ownerDisplayName.size() < 200;
+        && request.resource.data.ownerDisplayName.size() < 200
+        && request.resource.data.likeCount is int
+        && request.resource.data.likeCount == 0;
+
+      allow update: if request.auth != null
+        && canReadClipData(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.likeCount is int
+        && request.resource.data.likeCount >= 0
+        && (
+          request.resource.data.likeCount == resource.data.get('likeCount', 0) + 1
+          || (
+            request.resource.data.likeCount == resource.data.get('likeCount', 0) - 1
+            && resource.data.get('likeCount', 0) >= 1
+          )
+        );
 
       allow update: if request.auth != null
         && request.auth.uid == resource.data.userId
@@ -111,6 +137,21 @@ service cloud.firestore {
         && request.resource.data.communityVisibility in ['private', 'pending', 'published', 'rejected']
         && request.resource.data.moderationRejectionReason is string
         && request.resource.data.moderationRejectionReason.size() < 4000;
+
+      match /likes/{likerId} {
+        allow read: if request.auth != null
+          && canReadClipData(get(/databases/$(database)/documents/clips/$(clipId)).data);
+        allow create: if request.auth != null
+          && request.auth.uid == likerId
+          && canReadClipData(get(/databases/$(database)/documents/clips/$(clipId)).data)
+          && request.resource.data.keys().hasOnly(['createdAt'])
+          && request.resource.data.createdAt is timestamp;
+        allow delete: if request.auth != null
+          && (
+            request.auth.uid == likerId
+            || request.auth.uid == get(/databases/$(database)/documents/clips/$(clipId)).data.userId
+          );
+      }
     }
   }
 }

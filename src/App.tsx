@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import type {User} from 'firebase/auth';
 import {ContentHub} from './components/ContentHub';
 import {Recorder} from './components/Recorder';
@@ -25,6 +25,32 @@ import {subscribeIsUserAdmin} from './lib/admin';
 import {isFirebaseConfigured} from './lib/firebase';
 import {upsertUserProfileFromAuth} from './lib/userProfile';
 
+function clipStatusNotice(prev: VideoMetadata, next: VideoMetadata): string | null {
+  if (prev.communityVisibility === next.communityVisibility) return null;
+  const t = next.title.length > 52 ? `${next.title.slice(0, 52)}…` : next.title;
+  const pair = `${prev.communityVisibility}->${next.communityVisibility}`;
+  switch (pair) {
+    case 'private->pending':
+      return `“${t}” was sent for Community review.`;
+    case 'pending->published':
+      return `“${t}” was approved and is live in Community.`;
+    case 'pending->rejected':
+      return `“${t}” was not approved${next.moderationRejectionReason ? `: ${next.moderationRejectionReason}` : '.'}`;
+    case 'published->private':
+      return `“${t}” was removed from Community.`;
+    case 'published->pending':
+      return `“${t}” is back in review for Community.`;
+    case 'rejected->pending':
+      return `“${t}” was sent for review again.`;
+    case 'rejected->private':
+      return `Community status was cleared for “${t}”.`;
+    case 'pending->private':
+      return `“${t}” was withdrawn from Community review.`;
+    default:
+      return `“${t}” status was updated.`;
+  }
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -40,6 +66,9 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<VideoMetadata | null>(null);
+  const [hubNotice, setHubNotice] = useState<string | null>(null);
+  const hubNoticeInitRef = useRef(false);
+  const prevMyVideosRef = useRef<VideoMetadata[]>([]);
 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
@@ -113,6 +142,51 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
+    if (!user) {
+      hubNoticeInitRef.current = false;
+      prevMyVideosRef.current = [];
+      setHubNotice(null);
+      return;
+    }
+    if (!hubNoticeInitRef.current) {
+      hubNoticeInitRef.current = true;
+      prevMyVideosRef.current = myVideos;
+      return;
+    }
+    const prev = prevMyVideosRef.current;
+    if (prev.length === 0) {
+      prevMyVideosRef.current = myVideos;
+      return;
+    }
+    const prevById = new Map<string, VideoMetadata>(
+      prev.map(v => [v.id, v] as const),
+    );
+    for (const v of myVideos) {
+      const p = prevById.get(v.id);
+      if (!p) {
+        if (v.communityVisibility === 'pending') {
+          const t = v.title.length > 52 ? `${v.title.slice(0, 52)}…` : v.title;
+          setHubNotice(`“${t}” was sent for Community review.`);
+          break;
+        }
+        continue;
+      }
+      const msg = clipStatusNotice(p, v);
+      if (msg) {
+        setHubNotice(msg);
+        break;
+      }
+    }
+    prevMyVideosRef.current = myVideos;
+  }, [myVideos, user]);
+
+  useEffect(() => {
+    if (!hubNotice) return;
+    const t = window.setTimeout(() => setHubNotice(null), 12_000);
+    return () => clearTimeout(t);
+  }, [hubNotice]);
+
+  useEffect(() => {
     setSelectedVideo(null);
   }, [feedScope]);
 
@@ -153,10 +227,6 @@ export default function App() {
   }
 
   const viewerIsOwner = selectedVideo ? selectedVideo.ownerUserId === user.uid : false;
-  const playerLabel =
-    selectedVideo && selectedVideo.ownerUserId === user.uid
-      ? user.displayName || user.email || 'You'
-      : 'Community';
 
   return (
     <div className="min-h-dvh bg-black font-sans selection:bg-orange-600 selection:text-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
@@ -173,6 +243,8 @@ export default function App() {
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
         onSignOut={() => void signOutUser()}
+        hubNotice={hubNotice}
+        onDismissHubNotice={() => setHubNotice(null)}
       />
 
       <AnimatePresence>
@@ -209,7 +281,6 @@ export default function App() {
             videos={displayVideos}
             onSelectVideo={setSelectedVideo}
             onClose={() => setSelectedVideo(null)}
-            userLabel={playerLabel}
             viewerIsOwner={viewerIsOwner}
             onSetOwnerCommunityVisibility={handleSetOwnerCommunityVisibility}
             onDeleteClip={handleDeleteClip}

@@ -24,6 +24,7 @@ import {
 import type {CommunityVisibility, VideoCategory, VideoMetadata} from '@/src/types';
 import {formatDurationSec} from './duration';
 import {getFirebaseAuth, getFirebaseDb, getFirebaseStorage} from './firebase';
+import {videoExtensionForBlob} from './videoProcess';
 
 export interface ClipUploadPayload {
   videoBlob: Blob;
@@ -54,6 +55,7 @@ interface ClipDoc {
   moderatedAt?: Timestamp;
   moderatedBy?: string;
   ownerDisplayName: string;
+  likeCount: number;
 }
 
 function normalizeCommunityVisibility(raw: Record<string, unknown>): CommunityVisibility {
@@ -87,6 +89,7 @@ function normalizeClipDoc(raw: Record<string, unknown>): ClipDoc {
     moderatedBy: typeof d.moderatedBy === 'string' ? d.moderatedBy : undefined,
     ownerDisplayName:
       typeof d.ownerDisplayName === 'string' ? d.ownerDisplayName : '',
+    likeCount: typeof d.likeCount === 'number' && Number.isFinite(d.likeCount) ? d.likeCount : 0,
   };
 }
 
@@ -118,6 +121,7 @@ async function docToVideoMetadata(id: string, data: ClipDoc): Promise<VideoMetad
     moderationRejectionReason: data.moderationRejectionReason ?? '',
     moderatedAt: data.moderatedAt ? data.moderatedAt.toDate() : null,
     moderatedBy: data.moderatedBy ?? null,
+    likeCount: data.likeCount,
   };
 }
 
@@ -312,7 +316,8 @@ export async function uploadClip(
   const storage = getFirebaseStorage();
   const clipId = crypto.randomUUID();
   const base = `clips/${userId}/${clipId}`;
-  const videoPath = `${base}/video.webm`;
+  const ext = videoExtensionForBlob(payload.videoBlob);
+  const videoPath = `${base}/video.${ext}`;
   const thumbPath = `${base}/thumb.jpg`;
   const videoRef = ref(storage, videoPath);
   const thumbRef = ref(storage, thumbPath);
@@ -355,6 +360,7 @@ export async function uploadClip(
     communityVisibility,
     moderationRejectionReason: '',
     ownerDisplayName: sanitizeOwnerLabel(payload.ownerDisplayName ?? ''),
+    likeCount: 0,
   } satisfies ClipDoc);
 }
 
@@ -394,5 +400,7 @@ export async function deleteClip(
     deleteStorageObject(clip.thumbnailStoragePath),
   ]);
   const db = getFirebaseDb();
+  const likesSnap = await getDocs(collection(db, 'clips', clip.id, 'likes'));
+  await Promise.all(likesSnap.docs.map(d => deleteDoc(d.ref)));
   await deleteDoc(doc(db, 'clips', clip.id));
 }

@@ -12,10 +12,12 @@ service firebase.storage {
     }
 
     // Align with Firestore `communityReadable` / `legacyPublished` (firestore.rules).
-    function clipPublishedAtPath(userId, clipId) {
+    // Do not require path `{userId}` to match `clips/{clipId}.userId`: objects only exist at
+    // the real prefix; matching on `clipId` + published state is enough, and avoids denying
+    // reads when the doc is published but `userId` on the doc is missing or inconsistent.
+    function clipPublished(clipId) {
       let snap = firestore.get(/databases/(default)/documents/clips/$(clipId));
       return snap.data != null
-        && snap.data.get('userId', '') == userId
         && (
           snap.data.get('communityVisibility', '') == 'published'
           || (
@@ -29,7 +31,7 @@ service firebase.storage {
       allow read: if request.auth != null && (
         isAdmin() ||
         request.auth.uid == userId ||
-        clipPublishedAtPath(userId, clipId)
+        clipPublished(clipId)
       );
       allow write: if request.auth != null && request.auth.uid == userId;
     }

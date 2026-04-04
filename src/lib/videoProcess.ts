@@ -24,6 +24,19 @@ function pickRecorderMimeTypeForCanvasVideo(): string {
   return '';
 }
 
+/** When muxing canvas video + element audio, prefer codecs that include Opus. */
+function pickRecorderMimeForAVStream(): string {
+  const candidates = [
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp9,opus',
+    'video/webm',
+  ];
+  for (const t of candidates) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
 const MAX_TRANSCODE_LONG_EDGE = 1280;
 
 function canvasSizeForTranscode(videoWidth: number, videoHeight: number): {cw: number; ch: number} {
@@ -55,10 +68,19 @@ function createMediaRecorder(
   stream: MediaStream,
   mime: string,
   videoBitsPerSecond: number,
+  audioBitsPerSecond?: number,
 ): MediaRecorder {
+  const withAudio =
+    audioBitsPerSecond != null &&
+    audioBitsPerSecond > 0 &&
+    stream.getAudioTracks().length > 0;
+  const baseOpts: MediaRecorderOptions = {
+    videoBitsPerSecond,
+    ...(withAudio ? {audioBitsPerSecond: audioBitsPerSecond} : {}),
+  };
   if (mime && MediaRecorder.isTypeSupported(mime)) {
     try {
-      return new MediaRecorder(stream, {mimeType: mime, videoBitsPerSecond});
+      return new MediaRecorder(stream, {mimeType: mime, ...baseOpts});
     } catch {
       /* fall through */
     }
@@ -69,7 +91,7 @@ function createMediaRecorder(
     }
   }
   try {
-    return new MediaRecorder(stream, {videoBitsPerSecond});
+    return new MediaRecorder(stream, baseOpts);
   } catch {
     /* fall through */
   }
@@ -185,9 +207,9 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
 }
 
 /**
- * Re-encodes [trimStartSec, trimEndSec] using **canvas.captureStream** + MediaRecorder.
- * More reliable than HTMLVideoElement.captureStream for phone MP4/MOV; scales down to reduce encoder failures.
- * Output is **video-only** (no audio).
+ * Re-encodes [trimStartSec, trimEndSec] using **canvas.captureStream** for video (scaled, reliable on phone MP4/MOV)
+ * and, when possible, **HTMLVideoElement.captureStream** audio tracks muxed into the same MediaRecorder so uploads keep sound.
+ * Falls back to silent video-only output if the browser cannot compose or encode A+V.
  */
 async function recordSegmentToBlob(
   input: Blob,
@@ -195,8 +217,7 @@ async function recordSegmentToBlob(
   trimEndSec: number,
   videoBitsPerSecond: number,
 ): Promise<Blob> {
-  const mime = pickRecorderMimeTypeForCanvasVideo();
-  if (!mime) {
+  if (!pickRecorderMimeTypeForCanvasVideo()) {
     throw new Error('Video encoding is not supported in this browser.');
   }
 
@@ -245,8 +266,8 @@ async function recordSegmentToBlob(
       throw new Error('Trimming requires canvas.captureStream (try another browser).');
     }
 
-    const stream = canvasCap.call(canvas, 30);
-    const vTracks = stream.getVideoTracks();
+    const canvasStream = canvasCap.call(canvas, 30);
+    const vTracks = canvasStream.getVideoTracks();
     if (vTracks.length === 0) {
       throw new Error('No video track from canvas capture.');
     }
@@ -261,34 +282,94 @@ async function recordSegmentToBlob(
       /* first frame may not be ready yet */
     }
 
-    recorder = createMediaRecorder(stream, mime, videoBitsPerSecond);
+    let recordStream: MediaStream = canvasStream;
+    let outMime = pickRecorderMimeTypeForCanvasVideo();
+    let audioBits: number | undefined;
+    const videoEl = video as HTMLVideoElement & {captureStream?: (fps?: number) => MediaStream};
+    if (typeof videoEl.captureStream === 'function' && outMime) {
+      video.muted = false;
+      video.volume = 1;
+      try {
+        const elCap = videoEl.captureStream(30);
+        const aud = elCap.getAudioTracks();
+        if (aud.length > 0) {
+          const avMime = pickRecorderMimeForAVStream();
+          if (avMime && MediaRecorder.isTypeSupported(avMime)) {
+            recordStream = new MediaStream([...canvasStream.getVideoTracks(), ...aud]);
+            outMime = avMime;
+            audioBits = 96_000;
+          } else {
+            video.muted = true;
+          }
+        } else {
+          video.muted = true;
+        }
+      } catch {
+        recordStream = canvasStream;
+        outMime = pickRecorderMimeTypeForCanvasVideo();
+        audioBits = undefined;
+        video.muted = true;
+      }
+    }
+
+    if (!outMime) {
+      throw new Error('Video encoding is not supported in this browser.');
+    }
 
     const chunks: Blob[] = [];
+    let activeMime = outMime;
     const blobPromise = new Promise<Blob>((resolve, reject) => {
-      recorder!.ondataavailable = e => {
-        if (e.data.size > 0) chunks.push(e.data);
+      const wireHandlers = (rec: MediaRecorder) => {
+        rec.ondataavailable = e => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+        rec.onerror = ev => {
+          const err = (ev as ErrorEvent & {error?: DOMException}).error;
+          reject(
+            new Error(
+              err?.message
+                ? `Recording failed: ${err.message}`
+                : 'Recording failed (encoder error — try a shorter trim or another browser).',
+            ),
+          );
+        };
+        rec.onstop = () => {
+          const blob = new Blob(chunks, {type: activeMime || 'video/webm'});
+          if (blob.size < 32) {
+            reject(new Error('Recording produced an empty file — try trimming again.'));
+            return;
+          }
+          resolve(blob);
+        };
       };
-      recorder!.onerror = ev => {
-        const err = (ev as ErrorEvent & {error?: DOMException}).error;
-        reject(
-          new Error(
-            err?.message
-              ? `Recording failed: ${err.message}`
-              : 'Recording failed (encoder error — try a shorter trim or another browser).',
-          ),
-        );
-      };
-      recorder!.onstop = () => {
-        const blob = new Blob(chunks, {type: mime || 'video/webm'});
-        if (blob.size < 32) {
-          reject(new Error('Recording produced an empty file — try trimming again.'));
+
+      recorder = createMediaRecorder(recordStream, activeMime, videoBitsPerSecond, audioBits);
+      wireHandlers(recorder);
+      try {
+        recorder.start(100);
+      } catch {
+        chunks.length = 0;
+        video.muted = true;
+        activeMime = pickRecorderMimeTypeForCanvasVideo();
+        if (!activeMime) {
+          reject(new Error('Video encoding is not supported in this browser.'));
           return;
         }
-        resolve(blob);
-      };
+        recordStream = canvasStream;
+        audioBits = undefined;
+        recorder = createMediaRecorder(canvasStream, activeMime, videoBitsPerSecond);
+        wireHandlers(recorder);
+        try {
+          recorder.start(100);
+        } catch (e) {
+          reject(
+            e instanceof Error
+              ? e
+              : new Error('Could not start video encoder — try another browser or shorter clip.'),
+          );
+        }
+      }
     });
-
-    recorder.start(100);
 
     const end = trimEndSec;
     await new Promise<void>((resolve, reject) => {

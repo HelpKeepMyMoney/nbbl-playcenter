@@ -11,21 +11,25 @@ service firebase.storage {
       );
     }
 
-    function clipDoc(clipId) {
-      return firestore.get(/databases/(default)/documents/clips/$(clipId)).data;
-    }
-
-    function clipPublished(clipId) {
-      let c = clipDoc(clipId);
-      return c.get('communityVisibility', '') == 'published'
-        || (c.get('isPublic', false) == true && c.get('communityVisibility', '') == '');
+    // Align with Firestore `communityReadable` / `legacyPublished` (firestore.rules).
+    function clipPublishedAtPath(userId, clipId) {
+      let snap = firestore.get(/databases/(default)/documents/clips/$(clipId));
+      return snap.data != null
+        && snap.data.get('userId', '') == userId
+        && (
+          snap.data.get('communityVisibility', '') == 'published'
+          || (
+            snap.data.get('isPublic', false) == true
+            && snap.data.get('communityVisibility', '') == ''
+          )
+        );
     }
 
     match /clips/{userId}/{clipId}/{fileName} {
       allow read: if request.auth != null && (
         isAdmin() ||
         request.auth.uid == userId ||
-        clipPublished(clipId)
+        clipPublishedAtPath(userId, clipId)
       );
       allow write: if request.auth != null && request.auth.uid == userId;
     }

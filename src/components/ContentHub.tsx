@@ -182,7 +182,11 @@ export function ContentHub({
           />
           <div className="absolute inset-0 hero-gradient-nbbl p-4 sm:p-8 flex flex-col justify-end gap-2 sm:gap-4">
             <Badge className="w-fit bg-red-600 text-[10px] font-black uppercase tracking-widest">
-              {feedScope === 'mine' ? 'Your library' : 'Content Hub'}
+              {feedScope === 'mine' ? (
+                <span className="font-bold">My Clips</span>
+              ) : (
+                'Content Hub'
+              )}
             </Badge>
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-black tracking-tight uppercase italic leading-none max-w-xl">
               {feedScope === 'mine' ? (
@@ -277,9 +281,15 @@ export function ContentHub({
             </Button>
           </div>
           <p className="text-xs text-zinc-500 sm:text-right sm:max-w-md">
-            {feedScope === 'mine'
-              ? 'Your library is private by default. Add to Content Hub sends a clip for review before it appears for everyone.'
-              : 'Approved clips from all signed-in players — newest first.'}
+            {feedScope === 'mine' ? (
+              <>
+                <span className="font-bold text-zinc-400">My Clips</span> is private by default.{' '}
+                <span className="font-bold text-zinc-400">Add to Content Hub</span> sends a clip for review before it
+                appears for everyone.
+              </>
+            ) : (
+              'Approved clips from all signed-in players — newest first.'
+            )}
           </p>
         </div>
 

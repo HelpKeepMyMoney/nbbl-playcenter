@@ -1,4 +1,4 @@
-import {doc, getDoc, onSnapshot, type Unsubscribe} from 'firebase/firestore';
+import {collection, doc, getDoc, onSnapshot, type Unsubscribe} from 'firebase/firestore';
 import {getFirebaseDb} from './firebase';
 
 /** True if `admins/{uid}` exists. Document can be empty `{}`. */
@@ -12,5 +12,19 @@ export function subscribeIsUserAdmin(uid: string, onValue: (isAdmin: boolean) =>
     doc(getFirebaseDb(), 'admins', uid),
     snap => onValue(snap.exists()),
     () => onValue(false),
+  );
+}
+
+/** All admin UIDs (moderators only — requires `firestore.rules` allowing admins to read `admins/*`). */
+export function subscribeToAdminUids(
+  onData: (uids: Set<string>) => void,
+  onError: (err: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    collection(getFirebaseDb(), 'admins'),
+    snap => {
+      onData(new Set(snap.docs.map(d => d.id)));
+    },
+    err => onError(err instanceof Error ? err : new Error(String(err))),
   );
 }

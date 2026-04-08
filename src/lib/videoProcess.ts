@@ -53,13 +53,22 @@ function canvasSizeForTranscode(videoWidth: number, videoHeight: number): {cw: n
 export const TRANSCODE_UNSUPPORTED_HINT =
   'This clip uses a format your browser cannot decode or re-encode (often HEVC / “High Efficiency” from an iPhone). On the phone: duplicate or export the video as “Most compatible” / H.264, then upload again. On Windows you can also try another browser or the Microsoft HEVC Video Extensions.';
 
+/** Shown in the recorder when library passthrough applies — replaces the harsh HEVC wall of text. */
+export const PREVIEW_PASSTHROUGH_HEADLINE =
+  'Preview isn’t available in this browser (often “High Efficiency” / HEVC from iPhone). You can still save — your clip uploads as-is and usually plays fine in the hub.';
+
+/** Optional tip for users who want in-browser preview and trim next time. */
+export const PREVIEW_PASSTHROUGH_FOOTNOTE =
+  'Tip: for preview and trim here, export as H.264 / “Most compatible” in Photos, or set Camera → Formats → Most Compatible.';
+
 /** True when the recorder showed a library preview warning for codecs the browser cannot draw (HEVC, etc.). */
 export function isUndecodableLibraryNote(note: string | null): boolean {
   if (!note) return false;
   return (
     note === TRANSCODE_UNSUPPORTED_HINT ||
     note.includes('HEVC') ||
-    note.includes('High Efficiency')
+    note.includes('High Efficiency') ||
+    note.includes('re-encode in the browser')
   );
 }
 

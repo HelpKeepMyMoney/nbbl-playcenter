@@ -16,6 +16,8 @@ import {
   canSkipCameraTranscode,
   TRANSCODE_UNSUPPORTED_HINT,
   isUndecodableLibraryNote,
+  PREVIEW_PASSTHROUGH_HEADLINE,
+  PREVIEW_PASSTHROUGH_FOOTNOTE,
 } from '@/src/lib/videoProcess';
 
 const MAX_RECORD_MS = MAX_CLIP_DURATION_SEC * 1000;
@@ -428,8 +430,17 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     return isUndecodableLibraryNote(previewDecodeNote);
   }, [clipSource, recordedBlob, previewDecodeNote]);
 
+  const passthroughOverLength =
+    libraryPassthroughEligible &&
+    !durationLoading &&
+    fullDurationSec != null &&
+    fullDurationSec > MAX_CLIP_DURATION_SEC + 0.05;
+
   const saveDisabled =
-    uploading || durationLoading || (!libraryPassthroughEligible && !trimUiReady);
+    uploading ||
+    durationLoading ||
+    passthroughOverLength ||
+    (!libraryPassthroughEligible && !trimUiReady);
 
   return (
     <motion.div
@@ -520,15 +531,35 @@ export function Recorder({onSave, onClose}: RecorderProps) {
 
             {recordedBlob && previewDecodeNote ? (
               <div className="absolute inset-x-0 bottom-0 p-3 bg-black/85 border-t border-zinc-800">
-                <p className="text-[11px] sm:text-xs text-amber-100/95 leading-snug text-center">
-                  {previewDecodeNote}
-                </p>
-                {libraryPassthroughEligible && !durationLoading ? (
-                  <p className="text-[11px] sm:text-xs text-emerald-200/90 leading-snug text-center mt-2 font-medium">
-                    You can still save: we’ll upload your original file (under 20 MB, up to {MAX_CLIP_DURATION_SEC}s).
-                    Trim sliders won’t apply.
+                {libraryPassthroughEligible ? (
+                  <>
+                    <p className="text-[11px] sm:text-xs text-emerald-100/95 leading-snug text-center font-medium">
+                      {PREVIEW_PASSTHROUGH_HEADLINE}
+                    </p>
+                    {durationLoading ? (
+                      <p className="text-[10px] sm:text-[11px] text-zinc-400 text-center mt-2">
+                        Checking clip length…
+                      </p>
+                    ) : (
+                      <p className="text-[10px] sm:text-[11px] text-emerald-200/85 text-center mt-2">
+                        Save uploads your file (under 20 MB, up to {MAX_CLIP_DURATION_SEC}s). Trim isn’t applied.
+                      </p>
+                    )}
+                    {passthroughOverLength ? (
+                      <p className="text-[10px] sm:text-[11px] text-amber-200/95 text-center mt-2">
+                        This clip is longer than {MAX_CLIP_DURATION_SEC}s — shorten it in Photos, then try again (or
+                        export as H.264).
+                      </p>
+                    ) : null}
+                    <p className="text-[10px] sm:text-[11px] text-zinc-500 text-center mt-2 leading-snug">
+                      {PREVIEW_PASSTHROUGH_FOOTNOTE}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[11px] sm:text-xs text-amber-100/95 leading-snug text-center">
+                    {previewDecodeNote}
                   </p>
-                ) : null}
+                )}
               </div>
             ) : null}
 
@@ -592,7 +623,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                   ) : libraryPassthroughEligible ? (
                     <p className="text-sm text-zinc-400">
                       This format can’t be trimmed in the browser. Saving uploads the full clip if it’s under{' '}
-                      {MAX_CLIP_DURATION_SEC}s and 20 MB (see note on the preview).
+                      {MAX_CLIP_DURATION_SEC}s and 20 MB — same details as the message on the video above.
                     </p>
                   ) : trimUiReady ? (
                     <>

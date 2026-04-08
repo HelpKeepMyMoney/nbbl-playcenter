@@ -7,7 +7,7 @@ import {motion} from 'motion/react';
 import {VideoCategory} from '@/src/types';
 import type {ClipUploadPayload} from '@/src/lib/clips';
 import {formatDurationSec} from '@/src/lib/duration';
-import {captureThumbnailFromVideoBlob} from '@/src/lib/thumbnail';
+import {captureThumbnailFromVideoBlob, generatePlaceholderThumbnail} from '@/src/lib/thumbnail';
 import {
   MAX_CLIP_DURATION_SEC,
   MAX_VIDEO_BYTES,
@@ -15,6 +15,7 @@ import {
   readDurationSecFromVideoBlob,
   canSkipCameraTranscode,
   TRANSCODE_UNSUPPORTED_HINT,
+  isUndecodableLibraryNote,
 } from '@/src/lib/videoProcess';
 
 const MAX_RECORD_MS = MAX_CLIP_DURATION_SEC * 1000;
@@ -330,6 +331,39 @@ export function Recorder({onSave, onClose}: RecorderProps) {
     setUploadError(null);
     setUploading(true);
     try {
+      const passthroughLibraryHevc =
+        clipSource === 'library' &&
+        recordedBlob.size <= MAX_VIDEO_BYTES &&
+        isUndecodableLibraryNote(previewDecodeNote);
+
+      if (passthroughLibraryHevc) {
+        const rawDur = await readDurationSecFromVideoBlob(recordedBlob, 7200);
+        if (!Number.isFinite(rawDur) || rawDur < 0.25) {
+          throw new Error(
+            'Could not read this clip’s length. Export as H.264 / “Most compatible” from Photos and try again.',
+          );
+        }
+        if (rawDur > MAX_CLIP_DURATION_SEC + 0.05) {
+          throw new Error(
+            `This clip is longer than ${MAX_CLIP_DURATION_SEC} seconds. Shorten it in Photos, or export as H.264 and upload again.`,
+          );
+        }
+        const videoBlob = recordedBlob;
+        const durationSec = Math.min(rawDur, MAX_CLIP_DURATION_SEC);
+        const thumbnailBlob = await generatePlaceholderThumbnail();
+        await onSave({
+          videoBlob,
+          thumbnailBlob,
+          durationSec,
+          title: title.trim() || `NBBL ${category.toUpperCase()} — ${new Date().toLocaleDateString()}`,
+          category,
+          tags: ['NBBL', category],
+          requestCommunityPublic: makePublic,
+        });
+        onClose();
+        return;
+      }
+
       const fullDur =
         fullDurationSec ??
         (await readDurationSecFromVideoBlob(recordedBlob, 7200));
@@ -385,6 +419,17 @@ export function Recorder({onSave, onClose}: RecorderProps) {
   const trimMaxEnd =
     fullDurationSec != null ? Math.min(fullDurationSec, MAX_CLIP_DURATION_SEC) : MAX_CLIP_DURATION_SEC;
   const trimUiReady = fullDurationSec != null && !durationLoading;
+
+  /** Library pick the browser cannot decode (e.g. HEVC): allow Save to upload original under 20 MB. */
+  const libraryPassthroughEligible = useMemo(() => {
+    if (clipSource !== 'library' || !recordedBlob || recordedBlob.size > MAX_VIDEO_BYTES) {
+      return false;
+    }
+    return isUndecodableLibraryNote(previewDecodeNote);
+  }, [clipSource, recordedBlob, previewDecodeNote]);
+
+  const saveDisabled =
+    uploading || durationLoading || (!libraryPassthroughEligible && !trimUiReady);
 
   return (
     <motion.div
@@ -478,6 +523,12 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                 <p className="text-[11px] sm:text-xs text-amber-100/95 leading-snug text-center">
                   {previewDecodeNote}
                 </p>
+                {libraryPassthroughEligible && !durationLoading ? (
+                  <p className="text-[11px] sm:text-xs text-emerald-200/90 leading-snug text-center mt-2 font-medium">
+                    You can still save: we’ll upload your original file (under 20 MB, up to {MAX_CLIP_DURATION_SEC}s).
+                    Trim sliders won’t apply.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -538,6 +589,11 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                   </div>
                   {durationLoading ? (
                     <p className="text-sm text-zinc-500">Reading duration…</p>
+                  ) : libraryPassthroughEligible ? (
+                    <p className="text-sm text-zinc-400">
+                      This format can’t be trimmed in the browser. Saving uploads the full clip if it’s under{' '}
+                      {MAX_CLIP_DURATION_SEC}s and 20 MB (see note on the preview).
+                    </p>
                   ) : trimUiReady ? (
                     <>
                       <p className="text-[11px] text-zinc-500">
@@ -616,7 +672,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                   <Button
                     className="flex-1 min-h-12 bg-orange-600 hover:bg-orange-700"
                     onClick={() => void handleSave()}
-                    disabled={uploading || durationLoading || !trimUiReady}
+                    disabled={saveDisabled}
                   >
                     <Save className="mr-2 h-4 w-4" />
                     {uploading ? 'Processing…' : 'Save to hub'}

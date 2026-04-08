@@ -53,6 +53,16 @@ function canvasSizeForTranscode(videoWidth: number, videoHeight: number): {cw: n
 export const TRANSCODE_UNSUPPORTED_HINT =
   'This clip uses a format your browser cannot decode or re-encode (often HEVC / “High Efficiency” from an iPhone). On the phone: duplicate or export the video as “Most compatible” / H.264, then upload again. On Windows you can also try another browser or the Microsoft HEVC Video Extensions.';
 
+/** True when the recorder showed a library preview warning for codecs the browser cannot draw (HEVC, etc.). */
+export function isUndecodableLibraryNote(note: string | null): boolean {
+  if (!note) return false;
+  return (
+    note === TRANSCODE_UNSUPPORTED_HINT ||
+    note.includes('HEVC') ||
+    note.includes('High Efficiency')
+  );
+}
+
 async function waitForNonZeroVideoDimensions(
   video: HTMLVideoElement,
   timeoutMs: number,

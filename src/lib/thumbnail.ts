@@ -1,3 +1,37 @@
+/** JPEG placeholder when the browser cannot decode the video (e.g. HEVC) for canvas thumbnail. */
+export function generatePlaceholderThumbnail(): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 360;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      reject(new Error('Canvas not available'));
+      return;
+    }
+    const g = ctx.createLinearGradient(0, 0, 640, 360);
+    g.addColorStop(0, '#18181b');
+    g.addColorStop(1, '#3f3f46');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 640, 360);
+    ctx.fillStyle = '#ea580c';
+    ctx.font = '600 20px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Preview unavailable in this browser', 320, 155);
+    ctx.fillStyle = '#a1a1aa';
+    ctx.font = '13px system-ui, sans-serif';
+    ctx.fillText('Saving uploads your original file', 320, 188);
+    canvas.toBlob(
+      blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Thumbnail encode failed'));
+      },
+      'image/jpeg',
+      0.88,
+    );
+  });
+}
+
 export function captureThumbnailFromVideoBlob(videoBlob: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(videoBlob);

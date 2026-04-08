@@ -22,6 +22,7 @@ import {VideoCard} from './VideoCard';
 import {motion, AnimatePresence, useReducedMotion} from 'motion/react';
 
 const NBBL_SITE_URL = 'https://nbbl.vercel.app/';
+const NBBL_SITE_ORIGIN = NBBL_SITE_URL.replace(/\/$/, '');
 
 interface ContentHubProps {
   feedScope: FeedScope;
@@ -191,7 +192,8 @@ export function ContentHub({
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-black tracking-tight uppercase italic leading-none max-w-xl">
               {feedScope === 'mine' ? (
                 <>
-                  Hoop → <span className="text-red-600">capture</span> → own
+                  Hoop → <span className="text-red-600">capture</span> →{' '}
+                  <span className="text-yellow-400">own</span>
                 </>
               ) : (
                 <>
@@ -414,28 +416,122 @@ export function ContentHub({
         )}
       </main>
 
-      <footer className="border-t border-zinc-800 py-10 mt-12 mb-2 md:mb-0">
-        <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex flex-col items-center md:items-start gap-3 text-center md:text-left">
+      <footer className="bg-black border-t border-white/10 py-16 px-6 mt-12 pb-24 md:pb-16 mb-2 md:mb-0">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12">
+          <div className="col-span-1 md:col-span-2">
             <a
               href={NBBL_SITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              className="inline-flex items-center gap-2 md:gap-3 mb-5 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#E70910] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               aria-label="NBBL — opens in a new tab"
             >
-              <img src="/logo.png" alt="" className="h-10 w-10 object-contain" />
+              <img
+                src="/logo.png"
+                alt=""
+                width={160}
+                height={48}
+                className="max-w-[10rem] md:max-w-[11rem] max-h-11 md:max-h-[3.25rem] w-auto h-auto object-contain object-left"
+                aria-hidden
+              />
+              <span className="text-2xl md:text-3xl font-bold tracking-tighter text-white">
+                NB<span className="text-[#E70910]">BL</span>
+              </span>
             </a>
-            <p className="font-display text-sm font-black uppercase italic tracking-tight">No Backboard Basketball League</p>
-            <p className="text-zinc-500 text-xs max-w-sm">
-              Low tech. Low cost. High impact. Built for the milk crate era remix.
+            <p className="text-zinc-500 max-w-sm text-sm leading-relaxed">
+              Changing the culture of basketball by removing the safety net. Join us in the lab and hone your craft.
             </p>
           </div>
-          <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-            © {new Date().getFullYear()}{' '}
-            <span className="text-white">NB</span>
-            <span className="text-red-600">BL</span>
+          <div>
+            <h4 className="font-bold mb-4 uppercase tracking-widest text-sm text-white">Menu</h4>
+            <ul className="space-y-3 text-sm font-bold uppercase tracking-widest text-zinc-500">
+              <li>
+                <a
+                  href={`${NBBL_SITE_ORIGIN}/#the-game`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#E70910] transition"
+                >
+                  The Game
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`${NBBL_SITE_ORIGIN}/#the-ecosystem`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#E70910] transition"
+                >
+                  The Ecosystem
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`${NBBL_SITE_ORIGIN}/#the-tech`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#E70910] transition"
+                >
+                  The Tech
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`${NBBL_SITE_ORIGIN}/#watch`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#E70910] transition"
+                >
+                  Watch
+                </a>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold mb-4 uppercase tracking-widest text-sm text-white">Join</h4>
+            <a
+              href="/"
+              className="inline-flex items-center justify-center w-full md:w-auto bg-[#FFE500] px-3 py-2 md:px-6 md:py-2.5 rounded-full font-bold text-xs uppercase tracking-wide text-black hover:opacity-90 transition mb-3"
+            >
+              Try the demo
+            </a>
+            <a
+              href={`${NBBL_SITE_ORIGIN}/#stay-in-touch`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex flex-col md:flex-row md:items-center md:gap-1 items-center justify-center bg-[#E70910] px-3 py-2 md:px-6 md:py-2.5 rounded-full font-bold text-xs uppercase tracking-wide text-center leading-tight text-white hover:opacity-90 transition mb-8 w-full md:w-auto"
+            >
+              <span>Join The</span>
+              <span>Movement</span>
+            </a>
+            <h4 className="font-bold mb-4 uppercase tracking-widest text-sm text-white">Connect</h4>
+            <div className="flex space-x-4">
+              <a
+                href="https://www.instagram.com/nobackboards/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 backdrop-blur-md border border-white/10 hover:bg-[#E70910] transition"
+                aria-label="Instagram"
+              >
+                IG
+              </a>
+              <a
+                href="https://www.tiktok.com/@nobackboards"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 backdrop-blur-md border border-white/10 hover:bg-[#E70910] transition"
+                aria-label="TikTok"
+              >
+                TK
+              </a>
+            </div>
+          </div>
+        </div>
+        <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-white/5 text-xs text-zinc-600 flex flex-col sm:flex-row sm:justify-between gap-2">
+          <p className="font-bold uppercase tracking-widest">
+            © {new Date().getFullYear()} NO BACKBOARD BASKETBALL LEAGUE. ALL RIGHTS RESERVED.
           </p>
+          <p className="font-bold uppercase tracking-widest">DESIGNED FOR THE 1%</p>
         </div>
       </footer>
 

@@ -31,21 +31,21 @@ function clipStatusNotice(prev: VideoMetadata, next: VideoMetadata): string | nu
   const pair = `${prev.communityVisibility}->${next.communityVisibility}`;
   switch (pair) {
     case 'private->pending':
-      return `“${t}” was sent for Community review.`;
+      return `“${t}” was sent for Content Hub review.`;
     case 'pending->published':
-      return `“${t}” was approved and is live in Community.`;
+      return `“${t}” was approved and is live on the Content Hub.`;
     case 'pending->rejected':
       return `“${t}” was not approved${next.moderationRejectionReason ? `: ${next.moderationRejectionReason}` : '.'}`;
     case 'published->private':
-      return `“${t}” was removed from Community.`;
+      return `“${t}” was removed from the Content Hub.`;
     case 'published->pending':
-      return `“${t}” is back in review for Community.`;
+      return `“${t}” is back in Content Hub review.`;
     case 'rejected->pending':
       return `“${t}” was sent for review again.`;
     case 'rejected->private':
-      return `Community status was cleared for “${t}”.`;
+      return `Content Hub status was cleared for “${t}”.`;
     case 'pending->private':
-      return `“${t}” was withdrawn from Community review.`;
+      return `“${t}” was withdrawn from Content Hub review.`;
     default:
       return `“${t}” status was updated.`;
   }
@@ -166,7 +166,7 @@ export default function App() {
       if (!p) {
         if (v.communityVisibility === 'pending') {
           const t = v.title.length > 52 ? `${v.title.slice(0, 52)}…` : v.title;
-          setHubNotice(`“${t}” was sent for Community review.`);
+          setHubNotice(`“${t}” was sent for Content Hub review.`);
           break;
         }
         continue;
@@ -199,7 +199,9 @@ export default function App() {
 
   const handleDeleteClip = useCallback(
     async (v: VideoMetadata) => {
-      if (!user || user.uid !== v.ownerUserId) return;
+      if (!user) return;
+      const isOwner = user.uid === v.ownerUserId;
+      if (!isOwner && !isAdmin) return;
       const list = feedScope === 'mine' ? myVideos : communityVideos;
       const idx = list.findIndex(x => x.id === v.id);
       const next: VideoMetadata | null =
@@ -207,7 +209,7 @@ export default function App() {
       await deleteClip(v.ownerUserId, v);
       setSelectedVideo(current => (current?.id === v.id ? next : current));
     },
-    [user, feedScope, myVideos, communityVideos],
+    [user, isAdmin, feedScope, myVideos, communityVideos],
   );
 
   const handleSetOwnerCommunityVisibility = useCallback(
@@ -230,9 +232,10 @@ export default function App() {
   }
 
   const viewerIsOwner = selectedVideo ? selectedVideo.ownerUserId === user.uid : false;
+  const viewerCanDeleteClip = viewerIsOwner || isAdmin;
 
   return (
-    <div className="min-h-dvh bg-black font-sans selection:bg-orange-600 selection:text-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="min-h-dvh bg-black font-sans selection:bg-red-600 selection:text-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
       <ContentHub
         feedScope={feedScope}
         onFeedScopeChange={setFeedScope}
@@ -285,6 +288,7 @@ export default function App() {
             onSelectVideo={setSelectedVideo}
             onClose={() => setSelectedVideo(null)}
             viewerIsOwner={viewerIsOwner}
+            viewerCanDeleteClip={viewerCanDeleteClip}
             onSetOwnerCommunityVisibility={handleSetOwnerCommunityVisibility}
             onDeleteClip={handleDeleteClip}
           />

@@ -23,7 +23,7 @@ export function generatePlaceholderThumbnail(): Promise<Blob> {
     const r = 46;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#ea580c';
+    ctx.fillStyle = '#dc2626';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 2;
@@ -38,11 +38,22 @@ export function generatePlaceholderThumbnail(): Promise<Blob> {
     ctx.closePath();
     ctx.fill();
 
-    ctx.fillStyle = '#a8a29e';
     ctx.font = '600 15px system-ui, sans-serif';
-    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('NBBL PlayCenter', cx, h - 52);
+    const subY = h - 52;
+    const brandParts: {text: string; color: string}[] = [
+      {text: 'NB', color: 'rgba(255,255,255,0.95)'},
+      {text: 'BL', color: '#dc2626'},
+      {text: ' PlayCenter', color: '#a8a29e'},
+    ];
+    const totalW = brandParts.reduce((w, p) => w + ctx.measureText(p.text).width, 0);
+    let x = cx - totalW / 2;
+    ctx.textAlign = 'left';
+    for (const p of brandParts) {
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, x, subY);
+      x += ctx.measureText(p.text).width;
+    }
 
     canvas.toBlob(
       blob => {

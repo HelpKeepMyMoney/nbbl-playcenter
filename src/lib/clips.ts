@@ -33,7 +33,7 @@ export interface ClipUploadPayload {
   title: string;
   category: VideoCategory;
   tags: string[];
-  /** Submit for moderator review (becomes `pending`) */
+  /** Add to Content Hub: submit for moderator review (becomes `pending`) */
   requestCommunityPublic: boolean;
   /** Shown to admins — set by app from auth (optional on record step, required before upload) */
   ownerDisplayName?: string;
@@ -383,7 +383,7 @@ async function deleteStorageObject(path: string): Promise<void> {
   }
 }
 
-/** Removes clip doc and both Storage objects (owner-only; paths must be under `clips/{userId}/`). */
+/** Removes clip doc, like subdocs, and both Storage objects. `userId` must be the clip owner (paths under `clips/{userId}/`). */
 export async function deleteClip(
   userId: string,
   clip: Pick<VideoMetadata, 'id' | 'videoStoragePath' | 'thumbnailStoragePath'>,

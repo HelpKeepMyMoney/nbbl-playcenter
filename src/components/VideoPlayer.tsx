@@ -34,8 +34,10 @@ interface VideoPlayerProps {
   videos: VideoMetadata[];
   onSelectVideo: (video: VideoMetadata) => void;
   onClose: () => void;
-  /** Current user owns the clip — can delete and toggle Community request */
+  /** Current user owns the clip — can toggle Add to Content Hub */
   viewerIsOwner: boolean;
+  /** Owner or admin — may permanently delete the clip */
+  viewerCanDeleteClip: boolean;
   /** Owner-only: set Firestore `communityVisibility` */
   onSetOwnerCommunityVisibility: (clipId: string, next: CommunityVisibility) => Promise<void>;
   /** Permanently delete clip (Storage + Firestore); parent updates selection or closes. */
@@ -53,6 +55,7 @@ export function VideoPlayer({
   onSelectVideo,
   onClose,
   viewerIsOwner,
+  viewerCanDeleteClip,
   onSetOwnerCommunityVisibility,
   onDeleteClip,
 }: VideoPlayerProps) {
@@ -200,11 +203,10 @@ export function VideoPlayer({
   );
 
   const handleDeleteClip = useCallback(async () => {
-    if (
-      !window.confirm(
-        'Delete this clip permanently? The video and thumbnail will be removed from your library.',
-      )
-    ) {
+    const msg = viewerIsOwner
+      ? 'Delete this clip permanently? The video and thumbnail will be removed from your library.'
+      : 'Delete this user’s clip permanently? The video, thumbnail, and Firestore record will be removed.';
+    if (!window.confirm(msg)) {
       return;
     }
     setDeleting(true);
@@ -216,7 +218,7 @@ export function VideoPlayer({
     } finally {
       setDeleting(false);
     }
-  }, [onDeleteClip, video]);
+  }, [onDeleteClip, video, viewerIsOwner]);
 
   const positionLabel =
     currentIndex >= 0 && videos.length > 0
@@ -238,7 +240,7 @@ export function VideoPlayer({
       <Card className="my-auto w-full max-w-4xl min-h-0 gap-0 py-0 max-h-[calc(100dvh-1.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex flex-col bg-zinc-950 border-zinc-800 text-white overflow-hidden shadow-2xl">
         <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-zinc-800 p-3 sm:p-4 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <Badge className="shrink-0 bg-orange-600 text-[10px] font-bold uppercase tracking-wider">
+            <Badge className="shrink-0 bg-red-600 text-[10px] font-bold uppercase tracking-wider">
               {video.category}
             </Badge>
             <CardTitle className="text-base sm:text-lg font-bold tracking-tight truncate">
@@ -317,8 +319,8 @@ export function VideoPlayer({
               <div className="space-y-2">
                 <p className="text-sm text-zinc-300 leading-relaxed">
                   {viewerIsOwner
-                    ? `Your ${video.category} clip. Community sharing is reviewed by a moderator before it goes live.`
-                    : `An approved ${video.category} clip in Community.`}
+                    ? `Your ${video.category} clip. Content Hub sharing is reviewed by a moderator before it goes live.`
+                    : `An approved ${video.category} clip on the Content Hub.`}
                 </p>
 
                 {viewerIsOwner && video.communityVisibility === 'pending' && (
@@ -327,7 +329,7 @@ export function VideoPlayer({
                     <span>
                       <span className="font-bold text-amber-100">In review</span>
                       <span className="block text-xs text-amber-200/80 mt-0.5">
-                        A moderator will approve or deny your Community request. You’ll see the result here.
+                        A moderator will approve or deny your Add to Content Hub request. You’ll see the result here.
                       </span>
                     </span>
                   </div>
@@ -339,7 +341,7 @@ export function VideoPlayer({
                     <span>
                       <span className="font-bold text-emerald-100">Approved</span>
                       <span className="block text-xs text-emerald-200/80 mt-0.5">
-                        Your clip is live in Community. Uncheck below to remove it from Community (private again).
+                        Your clip is live on the Content Hub. Uncheck below to remove it from the Content Hub (private again).
                       </span>
                     </span>
                   </div>
@@ -349,7 +351,7 @@ export function VideoPlayer({
                   <div className="mt-3 rounded-lg border border-red-900/50 bg-red-950/25 px-3 py-2 text-sm text-red-200 flex gap-2 items-start">
                     <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                     <span>
-                      <span className="font-bold text-red-100">Denied for Community</span>
+                      <span className="font-bold text-red-100">Denied for Content Hub</span>
                       {video.moderationRejectionReason ? (
                         <span className="block text-xs text-red-200/90 mt-1.5 whitespace-pre-wrap">
                           {video.moderationRejectionReason}
@@ -358,7 +360,7 @@ export function VideoPlayer({
                         <span className="block text-xs text-red-200/70 mt-0.5">No reason was provided.</span>
                       )}
                       <span className="block text-xs text-zinc-400 mt-2">
-                        Check the box below to send again for another review.
+                        Check the box below to send again for another Content Hub review.
                       </span>
                     </span>
                   </div>
@@ -368,7 +370,7 @@ export function VideoPlayer({
                   <label className="flex items-start gap-3 mt-4 p-3 rounded-lg border border-zinc-800 bg-zinc-900/80 cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-zinc-600 text-orange-600 focus:ring-orange-600 shrink-0"
+                      className="mt-1 h-4 w-4 rounded border-zinc-600 text-red-600 focus:ring-red-600 shrink-0"
                       checked={shareOnLocal}
                       disabled={publicBusy || deleting}
                       onChange={e => void handleToggleCommunityShare(e.target.checked)}
@@ -376,21 +378,21 @@ export function VideoPlayer({
                     <span className="text-sm text-zinc-300 flex-1 min-w-0">
                       <span className="font-bold text-white flex items-center gap-1.5">
                         <Globe className="h-3.5 w-3.5 text-emerald-400" />
-                        Request Community
+                        Add to Content Hub
                       </span>
                       <span className="block text-xs text-zinc-500 mt-1">
-                        When checked, moderators can approve your clip for Community. Uncheck to keep it private.
+                        When checked, moderators can approve your clip for the Content Hub. Uncheck to keep it private.
                       </span>
                     </span>
                     {publicBusy ? (
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-orange-500" />
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-red-500" />
                     ) : null}
                   </label>
                 )}
                 {!viewerIsOwner && clipIsPublishedToCommunity(video.communityVisibility) && (
                   <p className="text-xs text-emerald-500/90 mt-3 flex items-center gap-1.5">
                     <Globe className="h-3.5 w-3.5" />
-                    Approved Community clip
+                    Approved Content Hub clip
                   </p>
                 )}
                 {publicError && <p className="text-xs text-red-400 mt-2">{publicError}</p>}
@@ -417,7 +419,7 @@ export function VideoPlayer({
                 )}
                 <Button
                   type="button"
-                  className={`w-full min-h-11 ${liked ? 'bg-zinc-800 hover:bg-zinc-700 text-orange-500 border border-orange-600' : 'bg-orange-600 hover:bg-orange-700'}`}
+                  className={`w-full min-h-11 ${liked ? 'bg-zinc-800 hover:bg-zinc-700 text-red-500 border border-red-600' : 'bg-red-600 hover:bg-red-700'}`}
                   onClick={() => void handleLike()}
                   disabled={deleting}
                   aria-pressed={liked}
@@ -457,7 +459,7 @@ export function VideoPlayer({
                   {downloading ? 'Downloading…' : 'Download'}
                 </Button>
                 {deleteError && <p className="text-xs text-red-400 text-center">{deleteError}</p>}
-                {viewerIsOwner && (
+                {viewerCanDeleteClip && (
                   <Button
                     type="button"
                     variant="outline"
@@ -471,7 +473,7 @@ export function VideoPlayer({
                     ) : (
                       <Trash2 className="mr-2 h-4 w-4" />
                     )}
-                    {deleting ? 'Deleting…' : 'Delete clip'}
+                    {deleting ? 'Deleting…' : viewerIsOwner ? 'Delete clip' : 'Delete clip (admin)'}
                   </Button>
                 )}
               </div>

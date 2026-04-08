@@ -2,7 +2,7 @@ export type VideoCategory = 'run' | 'highlight' | 'training';
 
 export type FeedScope = 'mine' | 'community';
 
-/** Community posting workflow — only `published` appears in Community feed */
+/** Content Hub posting workflow — only `published` appears in the Content Hub feed */
 export type CommunityVisibility = 'private' | 'pending' | 'published' | 'rejected';
 
 export interface VideoMetadata {

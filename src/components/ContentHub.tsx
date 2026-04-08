@@ -94,7 +94,7 @@ export function ContentHub({
               href={NBBL_SITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               aria-label="NBBL — opens in a new tab"
             >
               <img
@@ -104,8 +104,11 @@ export function ContentHub({
               />
             </a>
             <div className="min-w-0">
-              <h1 className="font-display text-base sm:text-lg font-black tracking-tight uppercase italic truncate">
-                PlayCenter
+              <h1 className="font-display text-base sm:text-lg font-black tracking-tight italic truncate leading-tight min-w-0">
+                <span className="text-white">NB</span>
+                <span className="text-red-600">BL</span>{' '}
+                <span className="text-white">ALLNET</span>{' '}
+                <span className="text-yellow-400">(Demo)</span>
               </h1>
               <p className="text-[10px] uppercase tracking-widest text-zinc-500 hidden sm:block">
                 Basketball remixed
@@ -121,7 +124,7 @@ export function ContentHub({
                   variant="outline"
                   size="icon"
                   onClick={onOpenAdmin}
-                  className="sm:hidden min-h-11 min-w-11 border-amber-800/60 text-amber-500"
+                  className="sm:hidden min-h-11 min-w-11 border-yellow-500 bg-yellow-400 text-black hover:bg-yellow-300 hover:border-yellow-400"
                   aria-label="Open admin moderation"
                 >
                   <Shield className="h-5 w-5" />
@@ -130,7 +133,7 @@ export function ContentHub({
                   type="button"
                   variant="outline"
                   onClick={onOpenAdmin}
-                  className="hidden sm:inline-flex border-amber-800/60 text-amber-500 hover:bg-amber-950/40 font-bold uppercase tracking-widest text-[10px] sm:text-xs h-9 px-3 rounded-full"
+                  className="hidden sm:inline-flex border-yellow-500 bg-yellow-400 text-black hover:bg-yellow-300 hover:border-yellow-400 font-bold uppercase tracking-widest text-[10px] sm:text-xs h-9 px-3 rounded-full"
                 >
                   <Shield className="mr-2 h-4 w-4" /> Admin
                 </Button>
@@ -138,20 +141,20 @@ export function ContentHub({
             )}
             <Button
               onClick={onRecordClick}
-              className="hidden md:inline-flex bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase tracking-widest text-[10px] sm:text-xs h-9 px-4 rounded-full"
+              className="hidden md:inline-flex bg-red-600 hover:bg-red-700 text-white font-bold uppercase tracking-widest text-[10px] sm:text-xs h-9 px-4 rounded-full"
             >
               <Video className="mr-2 h-4 w-4" /> Record
             </Button>
             <button
               type="button"
               onClick={onOpenProfile}
-              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 ring-offset-2 ring-offset-black focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-600"
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-zinc-800 border border-zinc-700 overflow-hidden shrink-0 ring-offset-2 ring-offset-black focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
               aria-label="Open profile"
             >
               {user.photoURL ? (
                 <img src={user.photoURL} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
               ) : (
-                <div className="h-full w-full flex items-center justify-center text-xs font-bold text-orange-500">
+                <div className="h-full w-full flex items-center justify-center text-xs font-bold text-red-500">
                   {(user.displayName || user.email || '?').slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -178,25 +181,60 @@ export function ContentHub({
             referrerPolicy="no-referrer"
           />
           <div className="absolute inset-0 hero-gradient-nbbl p-4 sm:p-8 flex flex-col justify-end gap-2 sm:gap-4">
-            <Badge className="w-fit bg-orange-600 text-[10px] font-black uppercase tracking-widest">
-              {feedScope === 'mine' ? 'Your library' : 'Content hub'}
+            <Badge className="w-fit bg-red-600 text-[10px] font-black uppercase tracking-widest">
+              {feedScope === 'mine' ? 'Your library' : 'Content Hub'}
             </Badge>
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-black tracking-tight uppercase italic leading-none max-w-xl">
               {feedScope === 'mine' ? (
                 <>
-                  Hoop → <span className="text-orange-600">capture</span> → own
+                  Hoop → <span className="text-red-600">capture</span> → own
                 </>
               ) : (
                 <>
-                  Run it → <span className="text-orange-600">share</span> → inspire
+                  Run it → <span className="text-red-600">share</span> →{' '}
+                  <span className="text-yellow-400">inspire</span>
                 </>
               )}
             </h2>
-            <p className="text-zinc-400 max-w-lg text-xs sm:text-sm font-medium leading-snug">
-              {feedScope === 'mine'
-                ? 'Request Community on a clip to send it for review. Moderators approve or deny with a reason.'
-                : 'Only moderator-approved clips appear here. Sign in to watch.'}
-            </p>
+            <div className="max-w-lg space-y-2 sm:space-y-2.5">
+              {feedScope === 'mine' ? (
+                <>
+                  <p className="text-zinc-300 text-xs sm:text-sm font-medium leading-snug">
+                    Hands-on preview of NBBL PlayCenter—see how adding a video clip, My Clips, and the Content Hub
+                    work together.
+                  </p>
+                  <ul className="text-zinc-400 text-xs sm:text-sm font-medium leading-snug list-disc pl-5 space-y-1.5 marker:text-red-600">
+                    <li>
+                      <span className="font-bold text-zinc-200">Record or upload</span> clips up to 60 seconds (runs,
+                      highlights, or training).
+                    </li>
+                    <li>
+                      Clips stay in your private library (<span className="font-bold text-zinc-200">My Clips</span>)
+                      unless you opt in to sharing.
+                    </li>
+                    <li>
+                      Check <span className="text-yellow-400 font-semibold">Add to Content Hub</span> when saving or
+                      viewing your video clip to request a public listing.
+                    </li>
+                    <li>
+                      Moderators approve all video clips before they are added to the{' '}
+                      <span className="font-bold text-zinc-200">Content Hub</span>.
+                    </li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <p className="text-zinc-300 text-xs sm:text-sm font-medium leading-snug">
+                    The shared reel: basketball moments players chose to put in front of everyone.
+                  </p>
+                  <ul className="text-zinc-400 text-xs sm:text-sm font-medium leading-snug list-disc pl-5 space-y-1.5 marker:text-red-600">
+                    <li>Only moderator-approved clips appear—nothing goes live without a review.</li>
+                    <li>Browse runs, highlights, and training from signed-in players.</li>
+                    <li>Newest posts first so fresh clips are easy to find.</li>
+                  </ul>
+                </>
+              )}
+            </div>
             <div className="hidden sm:flex gap-3 pt-2">
               <Button
                 size="lg"
@@ -218,7 +256,7 @@ export function ContentHub({
               onClick={() => onFeedScopeChange('mine')}
               className={`
                 flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
-                ${feedScope === 'mine' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+                ${feedScope === 'mine' ? 'bg-red-600 text-white hover:bg-red-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
               `}
             >
               <Library className="mr-1.5 h-3 w-3" />
@@ -231,7 +269,7 @@ export function ContentHub({
               onClick={() => onFeedScopeChange('community')}
               className={`
                 flex-1 sm:flex-none rounded-full px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
-                ${feedScope === 'community' ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+                ${feedScope === 'community' ? 'bg-red-600 text-white hover:bg-red-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
               `}
             >
               <Users className="mr-1.5 h-3 w-3" />
@@ -240,7 +278,7 @@ export function ContentHub({
           </div>
           <p className="text-xs text-zinc-500 sm:text-right sm:max-w-md">
             {feedScope === 'mine'
-              ? 'Community posts need moderator approval before they go live.'
+              ? 'Your library is private by default. Add to Content Hub sends a clip for review before it appears for everyone.'
               : 'Approved clips from all signed-in players — newest first.'}
           </p>
         </div>
@@ -248,14 +286,14 @@ export function ContentHub({
         {hubNotice ? (
           <div
             role="status"
-            className="flex items-start justify-between gap-3 rounded-xl border border-orange-800/50 bg-orange-950/40 px-4 py-3 text-sm text-orange-100"
+            className="flex items-start justify-between gap-3 rounded-xl border border-red-800/50 bg-red-950/40 px-4 py-3 text-sm text-red-100"
           >
             <p className="min-w-0 flex-1 leading-snug">{hubNotice}</p>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="shrink-0 min-h-9 text-orange-200 hover:text-white hover:bg-orange-900/50"
+              className="shrink-0 min-h-9 text-red-200 hover:text-white hover:bg-red-900/50"
               onClick={() => onDismissHubNotice?.()}
               aria-label="Dismiss notification"
             >
@@ -280,7 +318,7 @@ export function ContentHub({
                 onClick={() => setActiveTab(cat.id)}
                 className={`
                   shrink-0 rounded-full px-3 sm:px-4 font-bold uppercase tracking-widest text-[10px] h-9 min-h-11 sm:min-h-9
-                  ${activeTab === cat.id ? 'bg-orange-600 text-white hover:bg-orange-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
+                  ${activeTab === cat.id ? 'bg-red-600 text-white hover:bg-red-600' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}
                 `}
               >
                 <cat.icon className="mr-1.5 h-3 w-3" />
@@ -293,8 +331,8 @@ export function ContentHub({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 pointer-events-none" />
             <input
               type="search"
-              placeholder={feedScope === 'mine' ? 'Search your clips…' : 'Search community…'}
-              className="w-full min-h-11 bg-zinc-900 border border-zinc-800 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-600/50 transition-all"
+              placeholder={feedScope === 'mine' ? 'Search your clips…' : 'Search Content Hub…'}
+              className="w-full min-h-11 bg-zinc-900 border border-zinc-800 rounded-full pl-10 pr-4 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-red-600/50 transition-all"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -303,7 +341,7 @@ export function ContentHub({
 
         {clipsLoading && videos.length === 0 && (
           <p className="text-center text-zinc-500 py-12 text-sm">
-            {feedScope === 'mine' ? 'Loading your clips…' : 'Loading community…'}
+            {feedScope === 'mine' ? 'Loading your clips…' : 'Loading Content Hub…'}
           </p>
         )}
 
@@ -345,7 +383,7 @@ export function ContentHub({
               </p>
             </div>
             <Button
-              className="bg-orange-600 hover:bg-orange-700 min-h-11"
+              className="bg-red-600 hover:bg-red-700 min-h-11"
               onClick={onRecordClick}
             >
               <Video className="mr-2 h-4 w-4" /> Record
@@ -373,7 +411,7 @@ export function ContentHub({
               href={NBBL_SITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              className="rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               aria-label="NBBL — opens in a new tab"
             >
               <img src="/logo.png" alt="" className="h-10 w-10 object-contain" />
@@ -384,7 +422,9 @@ export function ContentHub({
             </p>
           </div>
           <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
-            © {new Date().getFullYear()} NBBL
+            © {new Date().getFullYear()}{' '}
+            <span className="text-white">NB</span>
+            <span className="text-red-600">BL</span>
           </p>
         </div>
       </footer>
@@ -404,7 +444,7 @@ export function ContentHub({
           </button>
           <button
             type="button"
-            className="flex-1 flex flex-col items-center justify-center gap-0.5 text-orange-500 text-[10px] uppercase tracking-widest font-bold"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 text-red-500 text-[10px] uppercase tracking-widest font-bold"
             onClick={onRecordClick}
           >
             <CircleDot className="h-6 w-6" />

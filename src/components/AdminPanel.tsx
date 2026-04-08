@@ -182,7 +182,7 @@ export function AdminPanel({moderatorUid, onClose}: AdminPanelProps) {
                 onClick={() => setFilter(t.id)}
                 className={
                   filter === t.id
-                    ? 'bg-orange-600 hover:bg-orange-700'
+                    ? 'bg-red-600 hover:bg-red-700'
                     : 'border-zinc-700 text-zinc-400'
                 }
               >
@@ -325,7 +325,7 @@ export function AdminPanel({moderatorUid, onClose}: AdminPanelProps) {
           <div className="border-t border-zinc-800 p-4 bg-zinc-900/80 space-y-3 shrink-0">
             <p className="text-sm font-medium text-zinc-300">Reason for denial (shown to the player)</p>
             <textarea
-              className="w-full min-h-[5rem] bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-600/50"
+              className="w-full min-h-[5rem] bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-red-600/50"
               placeholder="e.g. Contains identifiable minors / not basketball-related / quality…"
               value={denyReason}
               onChange={e => setDenyReason(e.target.value)}

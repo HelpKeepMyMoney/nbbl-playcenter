@@ -578,7 +578,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                       variant={category === cat ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setCategory(cat)}
-                      className={`min-h-11 px-4 ${category === cat ? 'bg-orange-600 hover:bg-orange-700' : 'border-zinc-700 text-zinc-400'}`}
+                      className={`min-h-11 px-4 ${category === cat ? 'bg-red-600 hover:bg-red-700' : 'border-zinc-700 text-zinc-400'}`}
                     >
                       {cat.toUpperCase()}
                     </Button>
@@ -641,7 +641,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                         </label>
                         <input
                           type="range"
-                          className="w-full accent-orange-600"
+                          className="w-full accent-red-600"
                           min={0}
                           max={Math.max(0, trimMaxEnd - 0.25)}
                           step={0.1}
@@ -660,7 +660,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                         </label>
                         <input
                           type="range"
-                          className="w-full accent-orange-600"
+                          className="w-full accent-red-600"
                           min={Math.min(trimMaxEnd, trimStart + 0.25)}
                           max={trimMaxEnd}
                           step={0.1}
@@ -681,7 +681,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                   <input
                     type="text"
                     placeholder="Name this clip…"
-                    className="w-full min-h-11 bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orange-600"
+                    className="w-full min-h-11 bg-zinc-800 border border-zinc-700 rounded-md px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-red-600"
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                   />
@@ -689,22 +689,22 @@ export function Recorder({onSave, onClose}: RecorderProps) {
                 <label className="flex items-start gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950/50 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    className="mt-1 h-4 w-4 rounded border-zinc-600 text-orange-600 focus:ring-orange-600 shrink-0"
+                    className="mt-1 h-4 w-4 rounded border-zinc-600 text-red-600 focus:ring-red-600 shrink-0"
                     checked={makePublic}
                     disabled={uploading}
                     onChange={e => setMakePublic(e.target.checked)}
                   />
                   <span className="text-sm text-zinc-300">
-                    <span className="font-medium text-white">Request Community</span>
+                    <span className="font-medium text-white">Add to Content Hub</span>
                     <span className="block text-xs text-zinc-500 mt-1">
-                      Sends your clip for moderator review. It appears in Community only after approval.
+                      Sends your clip for moderator review. It appears in the Content Hub only after approval.
                     </span>
                   </span>
                 </label>
                 {uploadError && <p className="text-sm text-red-400">{uploadError}</p>}
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
-                    className="flex-1 min-h-12 bg-orange-600 hover:bg-orange-700"
+                    className="flex-1 min-h-12 bg-red-600 hover:bg-red-700"
                     onClick={() => void handleSave()}
                     disabled={saveDisabled}
                   >

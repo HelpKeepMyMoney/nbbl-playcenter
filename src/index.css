@@ -55,7 +55,7 @@
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.15 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.6 0.2 30); /* Orange-ish */
+    --primary: oklch(0.55 0.22 25); /* NBBL logo red */
     --primary-foreground: oklch(0.985 0 0);
     --secondary: oklch(0.25 0 0);
     --secondary-foreground: oklch(0.985 0 0);
@@ -66,7 +66,7 @@
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.25 0 0);
     --input: oklch(0.25 0 0);
-    --ring: oklch(0.6 0.2 30);
+    --ring: oklch(0.55 0.22 25);
     --radius: 0.75rem;
 }
 
@@ -82,8 +82,8 @@
     }
 }
 
-.selection-orange ::selection {
-  background-color: #ea580c;
+.selection-nbbl ::selection {
+  background-color: #dc2626;
   color: white;
 }
 

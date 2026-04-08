@@ -20,7 +20,7 @@ import {getFirebaseDb} from '@/src/lib/firebase';
 import {syncCurrentUserProfileDoc, updateUserProfileCity} from '@/src/lib/userProfile';
 
 const inputClass =
-  'w-full min-h-11 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-600/50';
+  'w-full min-h-11 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-red-600/50';
 
 interface ProfilePanelProps {
   user: User;
@@ -211,7 +211,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
       >
         <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-zinc-800 p-3 sm:p-4 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <Badge className="shrink-0 bg-orange-600 text-[10px] font-bold uppercase tracking-wider">
+            <Badge className="shrink-0 bg-red-600 text-[10px] font-bold uppercase tracking-wider">
               Account
             </Badge>
             <CardTitle
@@ -260,7 +260,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
               )}
               {photoBusy && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                  <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+                  <Loader2 className="h-8 w-8 text-red-500 animate-spin" />
                 </div>
               )}
             </div>
@@ -334,7 +334,7 @@ export function ProfilePanel({user, onClose}: ProfilePanelProps) {
             </div>
             <Button
               type="button"
-              className="mt-3 bg-orange-600 hover:bg-orange-700 min-h-11 inline-flex items-center justify-center gap-2"
+              className="mt-3 bg-red-600 hover:bg-red-700 min-h-11 inline-flex items-center justify-center gap-2"
               disabled={saveNameBusy}
               onClick={() => void onSaveProfile()}
             >

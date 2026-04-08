@@ -10,7 +10,7 @@ import {getFirebaseDb} from '@/src/lib/firebase';
 interface VideoCardProps {
   video: VideoMetadata;
   onClick: (video: VideoMetadata) => void;
-  /** On “My clips”, show Community moderation status */
+  /** On “My clips”, show Content Hub moderation status */
   showModerationState?: boolean;
   /** Current user — used to show whether you liked this clip */
   viewerUid: string;
@@ -39,7 +39,7 @@ export function VideoCard({video, onClick, showModerationState, viewerUid}: Vide
 
   return (
     <Card
-      className="group relative overflow-hidden bg-zinc-900 border-zinc-800 hover:border-orange-600/50 transition-all cursor-pointer"
+      className="group relative overflow-hidden bg-zinc-900 border-zinc-800 hover:border-red-600/50 transition-all cursor-pointer"
       onClick={() => onClick(video)}
     >
       <div className="relative aspect-video overflow-hidden">
@@ -50,7 +50,7 @@ export function VideoCard({video, onClick, showModerationState, viewerUid}: Vide
           referrerPolicy="no-referrer"
         />
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="h-12 w-12 rounded-full bg-orange-600 flex items-center justify-center text-white shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+          <div className="h-12 w-12 rounded-full bg-red-600 flex items-center justify-center text-white shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
             <Play className="h-6 w-6 fill-current" />
           </div>
         </div>
@@ -68,14 +68,14 @@ export function VideoCard({video, onClick, showModerationState, viewerUid}: Vide
           </Badge>
         </div>
         <div className="absolute top-2 right-2 z-[1] flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-1 text-[10px] font-semibold text-white tabular-nums border border-white/10">
-          <Heart className={`h-3 w-3 shrink-0 ${viewerLiked ? 'fill-orange-500 text-orange-500' : 'text-zinc-300'}`} />
+          <Heart className={`h-3 w-3 shrink-0 ${viewerLiked ? 'fill-red-500 text-red-500' : 'text-zinc-300'}`} />
           <span>{formatLikeCount(video.likeCount)}</span>
         </div>
         <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
           <Badge
             className={`
             ${video.category === 'run' ? 'bg-blue-600' : ''}
-            ${video.category === 'highlight' ? 'bg-orange-600' : ''}
+            ${video.category === 'highlight' ? 'bg-red-600' : ''}
             ${video.category === 'training' ? 'bg-green-600' : ''}
             text-[10px] font-bold uppercase tracking-wider border-none
           `}
@@ -104,7 +104,7 @@ export function VideoCard({video, onClick, showModerationState, viewerUid}: Vide
       </div>
 
       <CardContent className="p-4 space-y-2">
-        <h3 className="font-bold text-white line-clamp-1 group-hover:text-orange-500 transition-colors">
+        <h3 className="font-bold text-white line-clamp-1 group-hover:text-red-500 transition-colors">
           {video.title}
         </h3>
         <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium">

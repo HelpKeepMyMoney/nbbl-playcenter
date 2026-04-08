@@ -55,6 +55,15 @@ export function generatePlaceholderThumbnail(): Promise<Blob> {
   });
 }
 
+/** Prefer a real frame from the file; use neutral placeholder only if decode/draw fails (e.g. some HEVC in Chrome). */
+export async function captureThumbnailFromVideoBlobOrPlaceholder(videoBlob: Blob): Promise<Blob> {
+  try {
+    return await captureThumbnailFromVideoBlob(videoBlob);
+  } catch {
+    return generatePlaceholderThumbnail();
+  }
+}
+
 export function captureThumbnailFromVideoBlob(videoBlob: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(videoBlob);

@@ -7,7 +7,10 @@ import {motion} from 'motion/react';
 import {VideoCategory} from '@/src/types';
 import type {ClipUploadPayload} from '@/src/lib/clips';
 import {formatDurationSec} from '@/src/lib/duration';
-import {captureThumbnailFromVideoBlob, generatePlaceholderThumbnail} from '@/src/lib/thumbnail';
+import {
+  captureThumbnailFromVideoBlob,
+  captureThumbnailFromVideoBlobOrPlaceholder,
+} from '@/src/lib/thumbnail';
 import {
   MAX_CLIP_DURATION_SEC,
   MAX_VIDEO_BYTES,
@@ -352,7 +355,7 @@ export function Recorder({onSave, onClose}: RecorderProps) {
         }
         const videoBlob = recordedBlob;
         const durationSec = Math.min(rawDur, MAX_CLIP_DURATION_SEC);
-        const thumbnailBlob = await generatePlaceholderThumbnail();
+        const thumbnailBlob = await captureThumbnailFromVideoBlobOrPlaceholder(videoBlob);
         await onSave({
           videoBlob,
           thumbnailBlob,

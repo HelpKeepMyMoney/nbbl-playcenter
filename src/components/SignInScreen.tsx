@@ -114,11 +114,13 @@ export function SignInScreen() {
         <div className="flex justify-center">
           <img src="/logo.png" alt="NBBL" className="h-14 w-14 object-contain" />
         </div>
-        <h1 className="font-display text-3xl sm:text-4xl font-black tracking-tight italic">
+        <h1 className="font-display text-3xl sm:text-4xl font-black tracking-tight italic leading-tight">
           <span className="text-white">NB</span>
-          <span className="text-red-600">BL</span>
-          <span className="text-white"> PlayCenter</span>
+          <span className="text-red-600">BL</span>{' '}
+          <span className="text-white">ALLNET</span>{' '}
+          <span className="text-yellow-400">(Demo)</span>
         </h1>
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500">Basketball remixed</p>
         <p className="text-zinc-400 text-sm leading-relaxed">
           Own your game. Sign in to record up to 60s clips and organize runs, highlights, and training
           in your private library.

@@ -1,26 +1,49 @@
-/** JPEG placeholder when the browser cannot decode the video (e.g. HEVC) for canvas thumbnail. */
+/** JPEG placeholder when the browser cannot decode the video (e.g. HEVC) for canvas thumbnail. Neutral art for hub grids — not upload-step messaging. */
 export function generatePlaceholderThumbnail(): Promise<Blob> {
   return new Promise((resolve, reject) => {
+    const w = 640;
+    const h = 360;
     const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 360;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       reject(new Error('Canvas not available'));
       return;
     }
-    const g = ctx.createLinearGradient(0, 0, 640, 360);
-    g.addColorStop(0, '#18181b');
-    g.addColorStop(1, '#3f3f46');
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, '#0c0c0e');
+    g.addColorStop(0.45, '#1c1917');
+    g.addColorStop(1, '#292524');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 640, 360);
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2;
+    const cy = h / 2 - 8;
+    const r = 46;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = '#ea580c';
-    ctx.font = '600 20px system-ui, sans-serif';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    const tri = 22;
+    ctx.moveTo(cx - tri * 0.35, cy - tri);
+    ctx.lineTo(cx - tri * 0.35, cy + tri);
+    ctx.lineTo(cx + tri * 0.85, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#a8a29e';
+    ctx.font = '600 15px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Preview unavailable in this browser', 320, 155);
-    ctx.fillStyle = '#a1a1aa';
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillText('Saving uploads your original file', 320, 188);
+    ctx.textBaseline = 'middle';
+    ctx.fillText('NBBL PlayCenter', cx, h - 52);
+
     canvas.toBlob(
       blob => {
         if (blob) resolve(blob);

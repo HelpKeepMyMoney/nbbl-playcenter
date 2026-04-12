@@ -15,6 +15,25 @@ initializeApp();
 const CLIP_PAGE = 40;
 
 /**
+ * Gen2 callables sit behind Cloud Run. Browsers send an OPTIONS preflight from
+ * Vercel / localhost; without `invoker: 'public'` the preflight can fail before
+ * CORS headers are applied. Handlers still require Firebase Auth + `admins/{uid}`.
+ * Add origins here if you add a custom production domain.
+ */
+const ADMIN_CALLABLE_BASE = {
+  region: 'us-central1',
+  invoker: 'public',
+  cors: [
+    'https://nbbl-playcenter.vercel.app',
+    /^https:\/\/nbbl-playcenter.*\.vercel\.app$/,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    /^https:\/\/[a-z0-9-]+\.web\.app$/,
+    /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/,
+  ],
+};
+
+/**
  * @param {import('@google-cloud/storage').Bucket} bucket
  * @param {string} path
  */
@@ -80,10 +99,9 @@ async function deleteProfilePrefix(bucket, uid) {
 
 export const deleteUserAccount = onCall(
   {
-    region: 'us-central1',
+    ...ADMIN_CALLABLE_BASE,
     timeoutSeconds: 300,
     memory: '512MiB',
-    cors: true,
   },
   async request => {
     if (!request.auth?.uid) {
@@ -155,10 +173,9 @@ export const deleteUserAccount = onCall(
  */
 export const setUserAdminRole = onCall(
   {
-    region: 'us-central1',
+    ...ADMIN_CALLABLE_BASE,
     timeoutSeconds: 60,
     memory: '256MiB',
-    cors: true,
   },
   async request => {
     if (!request.auth?.uid) {

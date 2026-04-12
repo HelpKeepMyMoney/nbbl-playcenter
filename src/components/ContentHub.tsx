@@ -206,7 +206,7 @@ export function ContentHub({
               {feedScope === 'mine' ? (
                 <>
                   <p className="text-zinc-300 text-xs sm:text-sm font-medium leading-snug">
-                    Hands-on preview of NBBL PlayCenter—see how adding a video clip, My Clips, and the Content Hub
+                    Hands-on preview of NBBL AllNet Demo—see how adding a video clip, My Clips, and the Content Hub
                     work together.
                   </p>
                   <ul className="text-zinc-400 text-xs sm:text-sm font-medium leading-snug list-disc pl-5 space-y-1.5 marker:text-red-600">

@@ -9,29 +9,31 @@ import {getAuth} from 'firebase-admin/auth';
 import {FieldValue, getFirestore} from 'firebase-admin/firestore';
 import {getStorage} from 'firebase-admin/storage';
 import {onCall, HttpsError} from 'firebase-functions/v2/https';
+import {onDocumentWritten} from 'firebase-functions/v2/firestore';
+import {defineSecret} from 'firebase-functions/params';
+import {Resend} from 'resend';
 
 initializeApp();
+
+const resendApiKey = defineSecret('RESEND_API_KEY');
+/** Same verified sender as NBBL (`api/contact.js`). */
+const RESEND_FROM_EMAIL = 'NBBL Website <contact@thecpi.network>';
+const ADMIN_REVIEW_NOTIFY_EMAIL = 'nobackboard@gmail.com';
 
 const CLIP_PAGE = 40;
 
 /**
- * Gen2 callables sit behind Cloud Run. Browsers send an OPTIONS preflight from
- * Vercel / localhost; without `invoker: 'public'` the preflight can fail before
- * CORS headers are applied. Handlers still require Firebase Auth + `admins/{uid}`.
- * Add origins here if you add a custom production domain.
+ * Gen2 callables sit behind Cloud Run. We set `invoker: 'public'` so deploy *should*
+ * grant `allUsers` the Cloud Run Invoker role (OPTIONS has no Firebase ID token).
+ * If the browser still shows CORS / preflight failures, the live service may lack
+ * that IAM binding — run `npm run grant:callable-invoker` (gcloud) or allow public
+ * invoke in GCP Console → Cloud Run → Security. `cors: true` allows any Origin;
+ * handlers still enforce Firebase Auth + `admins/{uid}`.
  */
 const ADMIN_CALLABLE_BASE = {
   region: 'us-central1',
   invoker: 'public',
-  cors: [
-    'https://allnet.nobackboard.com',
-    'https://nbbl-playcenter.vercel.app',
-    /^https:\/\/nbbl-playcenter.*\.vercel\.app$/,
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    /^https:\/\/[a-z0-9-]+\.web\.app$/,
-    /^https:\/\/[a-z0-9-]+\.firebaseapp\.com$/,
-  ],
+  cors: true,
 };
 
 /**
@@ -235,5 +237,66 @@ export const setUserAdminRole = onCall(
     }
 
     return {ok: true, role};
+  },
+);
+
+/**
+ * Email admin when a clip enters Content Hub review (`communityVisibility` → `pending`).
+ * Uses Resend with `RESEND_API_KEY` (set as a Functions secret; same key as the NBBL site).
+ */
+export const notifyAdminClipPendingReview = onDocumentWritten(
+  {
+    document: 'clips/{clipId}',
+    region: 'us-central1',
+    secrets: [resendApiKey],
+  },
+  async event => {
+    const change = event.data;
+    if (!change?.after.exists) return;
+
+    const after = change.after.data();
+    const before = change.before.exists ? change.before.data() : null;
+
+    if (after.communityVisibility !== 'pending') return;
+    if (before?.communityVisibility === 'pending') return;
+
+    const apiKey = resendApiKey.value();
+    if (!apiKey) {
+      console.warn('[notifyAdminClipPendingReview] RESEND_API_KEY is not set; skip email.');
+      return;
+    }
+
+    const clipId = event.params.clipId;
+    const title = typeof after.title === 'string' ? after.title : '(no title)';
+    const ownerLabel =
+      typeof after.ownerDisplayName === 'string' && after.ownerDisplayName.trim()
+        ? after.ownerDisplayName.trim()
+        : 'Unknown';
+    const ownerUid = typeof after.userId === 'string' ? after.userId : '';
+
+    const text = [
+      'A clip was submitted for Content Hub (admin) review.',
+      '',
+      `Title: ${title}`,
+      `Owner label: ${ownerLabel}`,
+      `Owner uid: ${ownerUid}`,
+      `Clip id: ${clipId}`,
+      '',
+      'Open the Play Center admin panel to approve or reject.',
+    ].join('\n');
+
+    const resend = new Resend(apiKey);
+
+    const {error} = await resend.emails.send({
+      from: RESEND_FROM_EMAIL,
+      to: [ADMIN_REVIEW_NOTIFY_EMAIL],
+      subject: `Play Center — clip pending review: ${title.length > 60 ? `${title.slice(0, 60)}…` : title}`,
+      text,
+    });
+
+    if (error) {
+      console.error('[notifyAdminClipPendingReview] Resend error', error);
+      throw new Error(error.message || 'Resend failed');
+    }
   },
 );

@@ -12,6 +12,7 @@
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:storage": "firebase deploy --only storage",
     "deploy:functions": "firebase deploy --only functions",
+    "grant:callable-invoker": "node scripts/grant-admin-callable-invoker.mjs",
     "backfill:users": "node scripts/backfill-user-profiles.mjs",
     "admin:set-claim": "node scripts/set-admin-claim.mjs"
   },

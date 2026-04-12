@@ -24,6 +24,7 @@ const ADMIN_CALLABLE_BASE = {
   region: 'us-central1',
   invoker: 'public',
   cors: [
+    'https://allnet.nobackboard.com',
     'https://nbbl-playcenter.vercel.app',
     /^https:\/\/nbbl-playcenter.*\.vercel\.app$/,
     'http://localhost:3000',

@@ -61,7 +61,9 @@ service cloud.firestore {
             && request.resource.data.photoURL.size() < 2048))
         && request.resource.data.city is string
         && request.resource.data.city.size() < 120
-        && request.resource.data.updatedAt is timestamp;
+        && request.resource.data.updatedAt is timestamp
+        && (!request.resource.data.keys().hasAny(['marketingConsent'])
+          || request.resource.data.marketingConsent is bool);
     }
 
     match /users/{userId} {
@@ -72,7 +74,8 @@ service cloud.firestore {
         && userProfileFieldsValid()
         && request.resource.data.createdAt is timestamp
         && request.resource.data.keys().hasAll([
-          'displayName', 'email', 'photoURL', 'city', 'updatedAt', 'createdAt'
+          'displayName', 'email', 'photoURL', 'city', 'updatedAt', 'createdAt',
+          'marketingConsent'
         ]);
 
       allow update: if request.auth != null

@@ -8,6 +8,7 @@ import {
   signUpWithEmail,
 } from '@/src/lib/auth';
 import {isFirebaseConfigured} from '@/src/lib/firebase';
+import {requestConstantContactSync} from '@/src/lib/constantContactSync';
 import {upsertUserProfileFromAuth} from '@/src/lib/userProfile';
 
 type AuthMode = 'signin' | 'signup';
@@ -24,12 +25,14 @@ export function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const configured = isFirebaseConfigured();
 
   const resetFormFields = () => {
     setPassword('');
     setConfirmPassword('');
+    setMarketingConsent(false);
   };
 
   const switchMode = (next: AuthMode) => {
@@ -82,7 +85,15 @@ export function SignInScreen() {
           ? await signUpWithEmail(trimmed, password)
           : await signInWithEmail(trimmed, password);
       if (configured) {
-        await upsertUserProfileFromAuth(u);
+        if (mode === 'signup') {
+          await upsertUserProfileFromAuth(u, {marketingConsent});
+          if (marketingConsent) {
+            const idToken = await u.getIdToken();
+            void requestConstantContactSync(idToken);
+          }
+        } else {
+          await upsertUserProfileFromAuth(u);
+        }
       }
     } catch (err) {
       setError(formatAuthError(err));
@@ -201,6 +212,24 @@ export function SignInScreen() {
                   placeholder="••••••••"
                   disabled={busy}
                 />
+              </div>
+            )}
+            {mode === 'signup' && (
+              <div className="flex items-start gap-2 pt-1">
+                <input
+                  id="auth-marketing-consent"
+                  type="checkbox"
+                  checked={marketingConsent}
+                  onChange={e => setMarketingConsent(e.target.checked)}
+                  disabled={busy}
+                  className="mt-1 h-4 w-4 shrink-0 rounded border-zinc-600 bg-zinc-950 text-red-600 focus:ring-red-600/40"
+                />
+                <label
+                  htmlFor="auth-marketing-consent"
+                  className="text-xs leading-snug text-zinc-400 cursor-pointer select-none"
+                >
+                  Email me occasional updates about NBBL and the Play Center (optional).
+                </label>
               </div>
             )}
             <Button

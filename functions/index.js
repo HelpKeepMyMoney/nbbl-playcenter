@@ -16,6 +16,7 @@ import {Resend} from 'resend';
 initializeApp();
 
 const resendApiKey = defineSecret('RESEND_API_KEY');
+
 /** Same verified sender as NBBL (`api/contact.js`). */
 const RESEND_FROM_EMAIL = 'NBBL Website <contact@thecpi.network>';
 const ADMIN_REVIEW_NOTIFY_EMAIL = 'nobackboard@gmail.com';

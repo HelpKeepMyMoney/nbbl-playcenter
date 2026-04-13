@@ -26,15 +26,26 @@ export interface UserProfileFirestore {
   city: string;
   updatedAt: unknown;
   createdAt?: unknown;
+  /** Set once on first profile create; not overwritten on later sign-ins. */
+  marketingConsent?: boolean;
 }
 
-export async function upsertUserProfileFromAuth(user: User): Promise<void> {
+export type UpsertUserProfileOptions = {
+  /** Only applied when the Firestore profile doc is first created (email sign-up checkbox). */
+  marketingConsent?: boolean;
+};
+
+export async function upsertUserProfileFromAuth(
+  user: User,
+  opts?: UpsertUserProfileOptions,
+): Promise<void> {
   const db = getFirebaseDb();
   const ref = doc(db, 'users', user.uid);
   const snap = await getDoc(ref);
   const prev = snap.data();
   const city =
     typeof prev?.city === 'string' ? prev.city : '';
+  const isNew = !snap.exists();
   await setDoc(
     ref,
     {
@@ -43,7 +54,8 @@ export async function upsertUserProfileFromAuth(user: User): Promise<void> {
       photoURL: user.photoURL ?? null,
       city,
       updatedAt: serverTimestamp(),
-      ...(snap.exists() ? {} : {createdAt: serverTimestamp()}),
+      ...(isNew ? {createdAt: serverTimestamp()} : {}),
+      ...(isNew ? {marketingConsent: opts?.marketingConsent === true} : {}),
     },
     {merge: true},
   );

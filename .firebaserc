@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "demo-playcenter",
+    "staging": "nbbl-playcenter-dev"
+  }
+}

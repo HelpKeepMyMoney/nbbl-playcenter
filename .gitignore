@@ -1,0 +1,15 @@
+node_modules
+.next
+dist
+lib
+.firebase
+.firebase-emulator-data
+*.log
+.env
+.env.local
+.env*.local
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+pubsub-debug.log
+functions/lib

@@ -1,0 +1,28 @@
+{
+  "name": "functions",
+  "version": "0.1.0",
+  "private": true,
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "regenerate-seed-stats": "npm run build && node lib/scripts/regenerate-circuit1-simulation.js",
+    "export-tournaments": "npm run build && node lib/scripts/export-circuit1-tournaments.js",
+    "seed": "node lib/scripts/seed-emulator.js",
+    "seed:staging": "node lib/scripts/seed-staging.js",
+    "validate-seed": "node lib/scripts/validate-circuit1-seed.js",
+    "test": "vitest run --passWithNoTests"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "@nbbl/shared": "*",
+    "firebase-admin": "^13.2.0",
+    "firebase-functions": "^6.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

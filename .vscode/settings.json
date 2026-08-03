@@ -1,0 +1,7 @@
+{
+  "npm.exclude": [
+    "**/.next/**",
+    "**/.firebase-emulator-data/**",
+    "**/firebase-export-*/**"
+  ]
+}

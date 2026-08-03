@@ -1,0 +1,168 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function tenantId() {
+      return request.auth.token.get('tenantId', '');
+    }
+
+    function permissionKeys() {
+      return request.auth.token.get('permissionKeys', []);
+    }
+
+    function hasPermission(key) {
+      return permissionKeys().hasAny(['admin:all', key]);
+    }
+
+    function isTenantDoc() {
+      return resource.data.get('tenantId', '') == tenantId();
+    }
+
+    function isTenantIncoming() {
+      return request.resource.data.get('tenantId', '') == tenantId();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && userId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /roles/{roleId} {
+      allow read: if isSignedIn() && resource.data.get('tenantId', '') == tenantId();
+      allow write: if false;
+    }
+
+    match /permissions/{permissionId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /organizations/{orgId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /facilities/{facilityId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /binodes/{binodeId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /courts/{courtId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /ageGroups/{ageGroupId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /seasons/{seasonId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /evaluations/{evaluationId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /developmentPlans/{planId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /events/{eventId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /communications/{communicationId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /reports/{reportId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /participants/{participantId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('participants:read');
+      allow create, update, delete: if false;
+    }
+
+    match /teams/{teamId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('teams:read');
+      allow create, update, delete: if false;
+    }
+
+    match /memberships/{membershipId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('teams:read');
+      allow create, update, delete: if false;
+    }
+
+    match /membershipPlans/{planId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('memberships:read');
+      allow write: if false;
+    }
+
+    match /playerMemberships/{membershipId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('memberships:read');
+      allow write: if false;
+    }
+
+    match /tournaments/{tournamentId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('tournaments:read');
+      allow create, update, delete: if false;
+    }
+
+    match /tournamentMatches/{matchId} {
+      allow read: if isSignedIn() && isTenantDoc() && (
+        hasPermission('tournaments:read') || hasPermission('teams:read')
+      );
+      allow create, update, delete: if false;
+    }
+
+    match /tournamentStandings/{standingId} {
+      allow read: if isSignedIn() && isTenantDoc() && (
+        hasPermission('tournaments:read') || hasPermission('teams:read')
+      );
+      allow create, update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow read: if isSignedIn() && isTenantDoc() && hasPermission('admin:all');
+      allow write: if false;
+    }
+
+    match /settings/{settingId} {
+      allow read: if isSignedIn() && isTenantDoc();
+      allow write: if false;
+    }
+
+    match /tenants/{tenantDocId}/stats/{statId} {
+      allow read: if isSignedIn() && tenantDocId == tenantId();
+      allow write: if false;
+    }
+  }
+}

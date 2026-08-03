@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getAdminAuth,
-  initAdmin,
   provisionUser,
   ServerError,
 } from "@nbbl/server";
-
-initAdmin();
 
 export async function POST(req: NextRequest) {
   try {

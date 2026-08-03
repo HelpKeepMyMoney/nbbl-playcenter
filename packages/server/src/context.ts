@@ -5,17 +5,48 @@ import { failedPrecondition, permissionDenied } from "./errors";
 let db: admin.firestore.Firestore | null = null;
 let auth: admin.auth.Auth | null = null;
 
-export function initAdmin(): void {
-  if (!admin.apps.length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    } else {
-      admin.initializeApp();
-    }
+function isNextBuildPhase(): boolean {
+  return process.env.NEXT_PHASE === "phase-production-build";
+}
+
+function parseServiceAccount(): admin.ServiceAccount | null {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim();
+  if (!raw) {
+    return null;
   }
+
+  try {
+    const json = raw.startsWith("{")
+      ? raw
+      : Buffer.from(raw, "base64").toString("utf8");
+    return JSON.parse(json) as admin.ServiceAccount;
+  } catch {
+    throw new Error(
+      "FIREBASE_SERVICE_ACCOUNT_KEY must be valid JSON (or base64-encoded JSON)."
+    );
+  }
+}
+
+export function initAdmin(): void {
+  if (admin.apps.length) {
+    db = admin.firestore();
+    auth = admin.auth();
+    return;
+  }
+
+  if (isNextBuildPhase()) {
+    return;
+  }
+
+  const serviceAccount = parseServiceAccount();
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } else {
+    admin.initializeApp();
+  }
+
   db = admin.firestore();
   auth = admin.auth();
 }

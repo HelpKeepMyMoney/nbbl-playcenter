@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getAuthContext,
   getAdminAuth,
-  initAdmin,
   runCommand,
   ServerError,
   commandRegistry,
 } from "@nbbl/server";
-
-initAdmin();
 
 function errorResponse(error: unknown) {
   if (error instanceof ServerError) {

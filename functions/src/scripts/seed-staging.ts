@@ -1,6 +1,6 @@
 process.env.SEED_TARGET = "remote";
 process.env.GCLOUD_PROJECT =
-  process.env.GCLOUD_PROJECT ?? "nbbl-playcenter";
+  process.env.GCLOUD_PROJECT ?? "playcenter-nbbl";
 
 if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
   process.env.GOOGLE_APPLICATION_CREDENTIALS =

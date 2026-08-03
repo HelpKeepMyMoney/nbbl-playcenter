@@ -9,7 +9,7 @@ function assertFirebaseProjectIdNotTypo(mode: string) {
   // Common copy/paste mistake: digit "1" instead of letter "l" in "nbbl".
   if (pid === 'nbb1-playcenter') {
     throw new Error(
-      'VITE_FIREBASE_PROJECT_ID is "nbb1-playcenter" (ends with digit 1). The real Firebase project id is "nbbl-playcenter" (letter l before "-playcenter"). Callable URLs use this value in the hostname; the typo breaks admin callables and often shows as a CORS preflight failure. Fix .env.local and every hosting provider env (e.g. Vercel) then rebuild.',
+      'VITE_FIREBASE_PROJECT_ID is "nbb1-playcenter" (ends with digit 1). The real Firebase project id is "playcenter-nbbl". Callable URLs use this value in the hostname; the typo breaks admin callables and often shows as a CORS preflight failure. Fix .env.local and every hosting provider env (e.g. Vercel) then rebuild.',
     );
   }
 }

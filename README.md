@@ -70,6 +70,7 @@ Emulator UI: [http://localhost:4000](http://localhost:4000)
 - App shell (desktop sidebar + mobile tab bar) per UI references in `public/`
 - **Participants** — list, create, edit, soft delete (callable Cloud Functions)
 - **Teams** — filters, KPI cards, master/detail pane, roster management
+- **Communications** — league director inbox with notifications and messages tabs; role-specific notification/message previews for player, coach, and fan (header dropdowns + dedicated inbox pages)
 
 ## Tests
 

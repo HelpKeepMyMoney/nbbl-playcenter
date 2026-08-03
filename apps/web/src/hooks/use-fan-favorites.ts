@@ -7,20 +7,25 @@ import { useAuthStore } from "@/stores/auth-store";
 
 function buildFavoritesInput(
   user: ReturnType<typeof useAuthStore.getState>["user"],
-  overrides: Partial<UpdateFanFavoritesInput> = {}
+  overrides: Partial<{
+    favoriteTeamIds: string[];
+    favoriteParticipantIds: string[];
+    favoriteVideoIds: string[];
+    interestedMerchIds: string[];
+    purchasedMerchIds: string[];
+  }> = {}
 ): UpdateFanFavoritesInput {
   return {
     favoriteTeamIds: overrides.favoriteTeamIds ?? user?.favoriteTeamIds ?? [],
     favoriteParticipantIds:
       overrides.favoriteParticipantIds ?? user?.favoriteParticipantIds ?? [],
-    favoriteVideoIds: (overrides.favoriteVideoIds ??
-      user?.favoriteVideoIds ??
-      []) as UpdateFanFavoritesInput["favoriteVideoIds"],
+    favoriteVideoIds:
+      overrides.favoriteVideoIds ?? user?.favoriteVideoIds ?? [],
     interestedMerchIds:
       overrides.interestedMerchIds ?? user?.interestedMerchIds ?? [],
     purchasedMerchIds:
       overrides.purchasedMerchIds ?? user?.purchasedMerchIds ?? [],
-  };
+  } as UpdateFanFavoritesInput;
 }
 
 export function useFanFavorites() {

@@ -1,11 +1,11 @@
 import * as admin from "firebase-admin";
 import { baseDocumentFields, DEFAULT_TENANT_ID, ENTERPRISE_ID } from "@nbbl/shared";
-import { generateTournamentSchedule } from "../../tournaments/lib/generate";
 import {
   computeStandings,
   generateDemoScores,
+  generateTournamentSchedule,
   type MatchResult,
-} from "../../tournaments/lib/standings";
+} from "@nbbl/server";
 import { CIRCUIT1_TEAMS, CIRCUIT1_SEASON_ID } from "./circuit1-ids";
 import { CIRCUIT1_TOURNAMENTS } from "./circuit1-tournaments";
 import type { SeedTournamentData } from "./circuit1-tournament-types";

@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
 import { buildCircuit1SimulationStats } from "./seed-data/build-circuit1-simulation-stats";
-import { serializePlayerStatsSeed } from "../tournaments/lib/player-stats-seed-export";
-import { serializeTeamStatsSeed } from "../tournaments/lib/team-stats-seed-export";
 import {
   normalizePlayoffPlaceholders,
   readTournamentsFromSeedFile,
+  serializePlayerStatsSeed,
+  serializeTeamStatsSeed,
   serializeTournamentsSeed,
-} from "../tournaments/lib/seed-export";
+} from "@nbbl/server";
 
 function main() {
   const seedDir = path.resolve(__dirname, "../../src/scripts/seed-data");

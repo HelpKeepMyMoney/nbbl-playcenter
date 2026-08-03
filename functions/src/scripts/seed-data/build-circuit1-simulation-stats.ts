@@ -2,20 +2,19 @@ import type { Division, SeedPlayerGameStats } from "@nbbl/shared";
 import { CIRCUIT1_PEOPLE, CIRCUIT1_TEAMS } from "./circuit1";
 import { CIRCUIT1_TOURNAMENTS } from "./circuit1-tournaments";
 import type { SeedTournamentData } from "./circuit1-tournament-types";
-import { normalizePlayoffPlaceholders } from "../../tournaments/lib/seed-export";
-import { computeStandings, generateDemoScores } from "../../tournaments/lib/standings";
 import {
   buildChampionshipMatchup,
   buildPlayoffMatchups,
-} from "../../tournaments/lib/playoffs";
-import {
   collectBoxScoresByTeam,
   computePlayerStatsFromMatches,
+  computeStandings,
+  computeTeamStats,
+  generateDemoScores,
   mergePlayerStatsMaps,
+  normalizePlayoffPlaceholders,
   type PlayerInfo,
-} from "../../tournaments/lib/simulate-player-stats";
-import { computeTeamStats } from "../../tournaments/lib/simulate-team-stats";
-import type { SimulatedMatch } from "../../tournaments/lib/simulate-tournament";
+  type SimulatedMatch,
+} from "@nbbl/server";
 import type { SeedTeamGameStats } from "@nbbl/shared";
 
 export function buildPlayersByTeam(): Map<string, PlayerInfo[]> {

@@ -15,26 +15,24 @@ import {
   requirePermission,
   writeAuditLog,
 } from "../lib/context";
-import { generateTournamentSchedule, type TeamInfo } from "./lib/generate";
 import {
+  collectBoxScoresByTeam,
   computeStandings,
   generateDemoScores,
-  type MatchResult,
-} from "./lib/standings";
-import {
-  syncTournamentToSeedFile,
-  type SeedTournamentData,
-} from "./lib/seed-export";
-import { simulateTournamentMatches } from "./lib/simulate-tournament";
-import {
-  simulatePlayerStats,
+  generateTournamentSchedule,
   loadPlayersByTeam,
-  collectBoxScoresByTeam,
   removePlayerStatsForTournament,
-} from "./lib/simulate-player-stats";
-import { resetTeamGameStats, simulateTeamStats } from "./lib/simulate-team-stats";
-import { syncPlayerStatsToSeedFile } from "./lib/player-stats-seed-export";
-import { syncTeamStatsToSeedFile } from "./lib/team-stats-seed-export";
+  simulatePlayerStats,
+  simulateTeamStats,
+  simulateTournamentMatches,
+  resetTeamGameStats,
+  syncPlayerStatsToSeedFile,
+  syncTeamStatsToSeedFile,
+  syncTournamentToSeedFile,
+  type MatchResult,
+  type SeedTournamentData,
+  type TeamInfo,
+} from "@nbbl/server";
 
 const CIRCUIT1_SEASON_ID = "season_circuit1_2026";
 

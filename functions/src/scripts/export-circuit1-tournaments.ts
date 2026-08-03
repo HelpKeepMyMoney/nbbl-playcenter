@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import type { SeedTournamentData } from "./seed-data/circuit1-tournament-types";
-import { writeTournamentsSeedFile } from "../tournaments/lib/seed-export";
+import { writeTournamentsSeedFile } from "@nbbl/server";
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT ?? "demo-playcenter";
 

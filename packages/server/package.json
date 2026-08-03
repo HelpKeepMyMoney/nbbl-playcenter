@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./tournaments": {
+      "types": "./dist/tournaments/index.d.ts",
+      "default": "./dist/tournaments/index.js"
     }
   },
   "scripts": {

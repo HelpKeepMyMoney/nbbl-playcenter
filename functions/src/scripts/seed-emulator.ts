@@ -50,7 +50,15 @@ if (!isRemoteSeed) {
 }
 
 if (!admin.apps.length) {
-  admin.initializeApp({ projectId: PROJECT_ID });
+  if (isRemoteSeed && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: PROJECT_ID,
+    });
+  } else {
+    admin.initializeApp({ projectId: PROJECT_ID });
+  }
 }
 
 const db = admin.firestore();
